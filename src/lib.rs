@@ -1,6 +1,6 @@
-use serde_json::Value;
+use serde_json;
 
-struct MSeed3Header {
+pub struct MSeed3Header {
     record_indicator: String,
     format_version: u8,
     flags: u8,
@@ -20,10 +20,10 @@ struct MSeed3Header {
     data_length: u32,
 }
 
-struct MSeed3Record {
+pub struct MSeed3Record {
     header: MSeed3Header,
     identifier: String,
-    extra_headers: Value,
+    extra_headers: serde_json::Map<String, serde_json::Value>,
     data: Vec<u8>,
 }
 
