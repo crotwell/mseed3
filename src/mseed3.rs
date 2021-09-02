@@ -35,15 +35,23 @@ fn read_le_u16(input: &mut &[u8]) -> u16 {
     u16::from_le_bytes(int_bytes.try_into().unwrap())
 }
 
-pub fn read_mseed3(file_name: &str) -> Result<MSeed3Header, MSeedError> {
+pub fn read_mseed3(file_name: &str) -> Result<Vec<MSeed3Record>, MSeedError> {
     let file = File::open(&file_name)?;
     let mut buf_reader = BufReader::new(file);
-
-    let mut buffer = [0; BUFFER_SIZE];
-
-    let _ = buf_reader.by_ref().take(40).read(&mut buffer)?;
-    return MSeed3Header::from_bytes(&buffer);
+    let mut records: Vec<MSeed3Record> = Vec::new();
+    while ! buf_reader.fill_buf()?.is_empty() {
+        let result = MSeed3Record::from_bytes(&mut buf_reader);
+        match result {
+            Ok(rec) => {
+                records.push(rec);
+            },
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(records)
 }
+
+pub const FIXED_HEADER_SIZE: u32 = 40;
 
 pub struct MSeed3Header {
     pub record_indicator: String,
@@ -116,15 +124,17 @@ impl MSeed3Header {
                 self.second as u32,
                 self.nanosecond,
             );
-        start.format("%Y-%jT%H:%M:%S%.9f").to_string()
+
+//        start.format("%Y-%jT%H:%M:%S%.9fZ").to_string()
+        start.format("%Y-%m-%dT%H:%M:%S%.9fZ").to_string()
     }
 
     pub fn crc_hex_string(&self) -> String {
-        format!("{:#010x}", self.crc)
+        format!("{:#010X}", self.crc)
     }
 
     pub fn get_size(&self) -> u32 {
-        self.identifier_length as u32 + self.extra_headers_length as u32 + self.data_length
+        FIXED_HEADER_SIZE + self.identifier_length as u32 + self.extra_headers_length as u32 + self.data_length
     }
 }
 
@@ -271,6 +281,8 @@ pub enum MSeedError {
     ExtraHeaderNotObject(serde_json::Value),
     #[error("MSeed3 extra header parse: `{0}`")]
     ExtraHeaderParse(String),
+    #[error("MSeed3 error: `{0}`")]
+    Unknown(String),
 }
 
 #[cfg(test)]
