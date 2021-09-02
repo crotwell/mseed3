@@ -1,6 +1,6 @@
-use serde_json;
 use chrono::prelude::*;
 use chrono::Utc;
+use serde_json;
 use std::convert::TryInto;
 use std::fmt;
 use std::fs::File;
@@ -101,12 +101,14 @@ impl MSeed3Header {
     }
 
     pub fn get_start_as_iso(&self) -> String {
-        let start = Utc.yo(self.year as i32,
-                           self.day_of_year as u32)
-            .and_hms_nano(self.hour as u32,
-                          self.minute as u32,
-                          self.second as u32,
-                          self.nanosecond);
+        let start = Utc
+            .yo(self.year as i32, self.day_of_year as u32)
+            .and_hms_nano(
+                self.hour as u32,
+                self.minute as u32,
+                self.second as u32,
+                self.nanosecond,
+            );
         start.format("%Y-%jT%H:%M:%S%.9f").to_string()
     }
 
@@ -115,15 +117,13 @@ impl MSeed3Header {
     }
 
     pub fn get_size(&self) -> u32 {
-        self.identifier_length as u32
-            +self.extra_headers_length as u32
-            +self.data_length
+        self.identifier_length as u32 + self.extra_headers_length as u32 + self.data_length
     }
 }
 
 pub enum ExtraHeaders {
     Raw(String),
-    Parsed(serde_json::Map<String, serde_json::Value>)
+    Parsed(serde_json::Map<String, serde_json::Value>),
 }
 
 pub struct MSeed3Record {
@@ -168,15 +168,17 @@ impl MSeed3Record {
         });
     }
 
-    pub fn parsed_json(&mut self) -> Result<&serde_json::Map<String, serde_json::Value>, MSeedError> {
+    pub fn parsed_json(
+        &mut self,
+    ) -> Result<&serde_json::Map<String, serde_json::Value>, MSeedError> {
         if let ExtraHeaders::Raw(eh_str) = &self.extra_headers {
-                let v: serde_json::Value = serde_json::from_str(&eh_str)?;
-                let eh = match v {
-                    serde_json::Value::Object(m) => m,
-                    _ => return Err(MSeedError::JsonError),
-                };
+            let v: serde_json::Value = serde_json::from_str(&eh_str)?;
+            let eh = match v {
+                serde_json::Value::Object(m) => m,
+                _ => return Err(MSeedError::JsonError),
+            };
             self.extra_headers = ExtraHeaders::Parsed(eh);
-            }
+        }
         if let ExtraHeaders::Parsed(eh) = &self.extra_headers {
             return Ok(&eh);
         }
@@ -186,51 +188,61 @@ impl MSeed3Record {
 
 impl fmt::Display for MSeed3Header {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // FDSN:CO_HODGE_00_L_H_Z, version 4, 477 bytes (format: 3)
+        //          start time: 2019,187,03:19:53.000000
+        //   number of samples: 255
+        //    sample rate (Hz): 1
+        //               flags: [00000000] 8 bits
+        //                 CRC: 0x8926FFDF
+        // extra header length: 31 bytes
+        // data payload length: 384 bytes
+        //    payload encoding: STEIM-2 integer compression (val: 11)
+        //       extra headers:
+        //             "FDSN": {
+        //               "Time": {
+        //                 "Quality": 0
+        //               }
+        //             }
 
-            // FDSN:CO_HODGE_00_L_H_Z, version 4, 477 bytes (format: 3)
-            //          start time: 2019,187,03:19:53.000000
-            //   number of samples: 255
-            //    sample rate (Hz): 1
-            //               flags: [00000000] 8 bits
-            //                 CRC: 0x8926FFDF
-            // extra header length: 31 bytes
-            // data payload length: 384 bytes
-            //    payload encoding: STEIM-2 integer compression (val: 11)
-            //       extra headers:
-            //             "FDSN": {
-            //               "Time": {
-            //                 "Quality": 0
-            //               }
-            //             }
-
-            let encode_name = match self.encoding {
-                10 => "STEIM-1 integer compression",
-                11 => "STEIM-2 integer compression",
-                _ => "unknown",
-            };
+        let encode_name = match self.encoding {
+            10 => "STEIM-1 integer compression",
+            11 => "STEIM-2 integer compression",
+            _ => "unknown",
+        };
         let lines = [
-            format!("version ${}, ${} bytes (format: ${})\n", self.publication_version, self.get_size()+self.data_length, self.format_version ),
+            format!(
+                "version ${}, ${} bytes (format: ${})\n",
+                self.publication_version,
+                self.get_size() + self.data_length,
+                self.format_version
+            ),
             format!("             start time: ${}\n", self.get_start_as_iso()),
             format!("      number of samples: ${}\n", self.num_samples),
             format!("       sample rate (Hz): ${}\n", self.sample_rate_period),
             format!("                  flags: [${:#08b}] 8 bits\n", self.flags),
             format!("                    CRC: ${}\n", self.crc_hex_string()),
-            format!("    extra header length: ${} bytes\n", self.extra_headers_length),
+            format!(
+                "    extra header length: ${} bytes\n",
+                self.extra_headers_length
+            ),
             format!("    data payload length: ${} bytes\n", self.data_length),
-            format!("       payload encoding: ${encode_name} (val: ${encoding})",encode_name=encode_name,encoding=self.encoding)
+            format!(
+                "       payload encoding: ${encode_name} (val: ${encoding})",
+                encode_name = encode_name,
+                encoding = self.encoding
+            ),
         ];
         let line = "";
         for l in lines {
-            format!("{}{}",line, l);
+            format!("{}{}", line, l);
         }
         write!(f, "{}", line)
     }
 }
 
-
 impl fmt::Display for MSeed3Record {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "  {}, {}", self.identifier, self.header )
+        write!(f, "  {}, {}", self.identifier, self.header)
     }
 }
 
