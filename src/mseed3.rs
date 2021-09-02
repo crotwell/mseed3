@@ -9,6 +9,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::string::FromUtf8Error;
+use thiserror::Error;
 
 const BUFFER_SIZE: usize = 256;
 
@@ -65,11 +66,12 @@ pub struct MSeed3Header {
 }
 
 impl MSeed3Header {
+    pub const REC_IND: [u8; 2] = [ b'M', b'S' ];
     pub fn from_bytes(buffer: &[u8]) -> Result<MSeed3Header, MSeedError> {
         print!("read_mseed3_buf...");
         assert_eq!(&buffer[0..2], "MS".as_bytes());
-        if buffer[0] != b'M' || buffer[1] != b'S' {
-            return Err(MSeedError::BadRecordIndicator);
+        if buffer[0] != MSeed3Header::REC_IND[0] || buffer[1] != MSeed3Header::REC_IND[1] {
+            return Err(MSeedError::BadRecordIndicator(buffer[0], buffer[1]));
         }
         // skip M, S, format, flags
         let (_, mut header_bytes) = buffer.split_at(4);
@@ -148,7 +150,11 @@ impl MSeed3Record {
             .by_ref()
             .take(header.identifier_length as u64)
             .read_to_end(&mut buffer)?;
-        let identifier = String::from_utf8(buffer)?;
+        let id_result = String::from_utf8(buffer);
+        let identifier = match id_result {
+            Ok(id) => id,
+            Err(e) => return Err(MSeedError::FromUtf8Error(e))
+        };
         let extra_headers_str: String;
         if header.extra_headers_length > 2 {
             let mut json_reader = buf_reader.by_ref().take(header.extra_headers_length as u64);
@@ -180,14 +186,14 @@ impl MSeed3Record {
             let v: serde_json::Value = serde_json::from_str(&eh_str)?;
             let eh = match v {
                 serde_json::Value::Object(m) => m,
-                _ => return Err(MSeedError::JsonError),
+                _ => return Err(MSeedError::ExtraHeaderNotObject(v)),
             };
             self.extra_headers = ExtraHeaders::Parsed(eh);
         }
         if let ExtraHeaders::Parsed(eh) = &self.extra_headers {
             return Ok(&eh);
         }
-        Err(MSeedError::JsonError)
+        Err(MSeedError::ExtraHeaderParse(String::from("unable to parse extra headers")))
     }
 }
 
@@ -251,43 +257,20 @@ impl fmt::Display for MSeed3Record {
     }
 }
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum MSeedError {
-    IOError,
-    FromUtf8Error,
-    BadRecordIndicator,
-    JsonError,
-}
-
-impl std::error::Error for MSeedError {}
-
-impl fmt::Display for MSeedError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            MSeedError::IOError => write!(f, "IO Error"),
-            MSeedError::JsonError => write!(f, "JSON Error"),
-            MSeedError::BadRecordIndicator => write!(f, "Header must start with MS"),
-            MSeedError::FromUtf8Error => write!(f, "UTF8 Error"),
-        }
-    }
-}
-
-impl From<std::io::Error> for MSeedError {
-    fn from(err: std::io::Error) -> MSeedError {
-        MSeedError::IOError
-    }
-}
-
-impl From<serde_json::Error> for MSeedError {
-    fn from(err: serde_json::Error) -> MSeedError {
-        MSeedError::JsonError
-    }
-}
-
-impl From<FromUtf8Error> for MSeedError {
-    fn from(err: FromUtf8Error) -> MSeedError {
-        MSeedError::FromUtf8Error
-    }
+    #[error("IO Error")]
+    IOError(#[from] std::io::Error),
+    #[error("Text not UTF8")]
+    FromUtf8Error(#[from] FromUtf8Error),
+    #[error("cannot parse extra headers")]
+    JsonError(#[from] serde_json::Error),
+    #[error("MSeed3 header must start with MS, (77, 83)  but was `{0}{1}`")]
+    BadRecordIndicator(u8,u8),
+    #[error("MSeed3 extra header must be object  but was `{0}`")]
+    ExtraHeaderNotObject(serde_json::Value),
+    #[error("MSeed3 extra header parse: `{0}`")]
+    ExtraHeaderParse(String),
 }
 
 #[cfg(test)]
