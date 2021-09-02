@@ -40,23 +40,23 @@ pub fn read_mseed3(file_name: &str) -> Result<MSeed3Header, MSeedError> {
 }
 
 pub struct MSeed3Header {
-    record_indicator: String,
-    format_version: u8,
-    flags: u8,
-    nanosecond: u32,
-    year: u16,
-    day_of_year: u16,
-    hour: u8,
-    minute: u8,
-    second: u8,
-    encoding: u8,
-    sample_rate_period: f64,
-    num_samples: u32,
-    crc: u32,
-    publication_version: u8,
-    identifier_length: u8,
-    extra_headers_length: u16,
-    data_length: u32,
+    pub record_indicator: String,
+    pub format_version: u8,
+    pub flags: u8,
+    pub nanosecond: u32,
+    pub year: u16,
+    pub day_of_year: u16,
+    pub hour: u8,
+    pub minute: u8,
+    pub second: u8,
+    pub encoding: u8,
+    pub sample_rate_period: f64,
+    pub num_samples: u32,
+    pub crc: u32,
+    pub publication_version: u8,
+    pub identifier_length: u8,
+    pub extra_headers_length: u16,
+    pub data_length: u32,
 }
 
 impl MSeed3Header {
@@ -121,16 +121,16 @@ impl MSeed3Header {
     }
 }
 
-enum ExtraHeaders {
+pub enum ExtraHeaders {
     Raw(String),
     Parsed(serde_json::Map<String, serde_json::Value>)
 }
 
 pub struct MSeed3Record {
-    header: MSeed3Header,
-    identifier: String,
-    extra_headers: ExtraHeaders,
-    encoded_data: Vec<u8>,
+    pub header: MSeed3Header,
+    pub identifier: String,
+    pub extra_headers: ExtraHeaders,
+    pub encoded_data: Vec<u8>,
 }
 
 impl MSeed3Record {
@@ -182,8 +182,6 @@ impl MSeed3Record {
         }
         Err(MSeedError::JsonError)
     }
-
-
 }
 
 impl fmt::Display for MSeed3Header {
