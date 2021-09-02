@@ -8,3 +8,5 @@ edition = "2018"
 [dependencies]
 byteorder = "1"
 serde_json = "1"
+thiserror = "1.0"
+chrono = "0.4"
