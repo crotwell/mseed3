@@ -130,7 +130,8 @@ impl MSeed3Header {
     }
 
     pub fn crc_hex_string(&self) -> String {
-        format!("{:#010X}", self.crc)
+//        format!("{:#010X}", self.crc)
+        format!("{:#X}", self.crc)
     }
 
     pub fn get_size(&self) -> u32 {
