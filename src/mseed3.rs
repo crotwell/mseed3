@@ -18,10 +18,6 @@ const BUFFER_SIZE: usize = 256;
 fn read_le_f64(input: &mut &[u8]) -> f64 {
     let (int_bytes, rest) = input.split_at(std::mem::size_of::<f64>());
     *input = rest;
-    print!("in read_le_f64");
-    for n in 0..8 {
-        print!("{}", int_bytes[n]);
-    }
     f64::from_le_bytes(int_bytes.try_into().unwrap())
 }
 
@@ -56,15 +52,15 @@ pub fn read_mseed3(file_name: &str) -> Result<Vec<MSeed3Record>, MSeedError> {
 pub const FIXED_HEADER_SIZE: usize = 40;
 
 ///
-/// 0 	Text, UTF-8 allowed, use ASCII for maximum portability, no structure defined
-/// 1 	16-bit integer (two’s complement), little endian byte order
-/// 3 	32-bit integer (two’s complement), little endian byte order
-/// 4 	32-bit floats (IEEE float), little endian byte order
-/// 5 	64-bit floats (IEEE double), little endian byte order
-/// 10 	Steim-1 integer compression, big endian byte order
-/// 11 	Steim-2 integer compression, big endian byte order
-/// 19 	Steim-3 integer compression, big endian (not in common use in archives)
-/// 100 	Opaque data - only for use in special scenarios, not intended for archiving
+/// 0   Text, UTF-8 allowed, use ASCII for maximum portability, no structure defined
+/// 1   16-bit integer (two’s complement), little endian byte order
+/// 3   32-bit integer (two’s complement), little endian byte order
+/// 4   32-bit floats (IEEE float), little endian byte order
+/// 5   64-bit floats (IEEE double), little endian byte order
+/// 10  Steim-1 integer compression, big endian byte order
+/// 11  Steim-2 integer compression, big endian byte order
+/// 19  Steim-3 integer compression, big endian (not in common use in archives)
+/// 100 Opaque data - only for use in special scenarios, not intended for archiving
 pub enum DataEncodings {
     TEXT,
     INT16,
@@ -162,25 +158,25 @@ impl MSeed3Header {
             extra_headers_length,
             data_length,
         };
-        return Ok(ms3_header);
+        Ok(ms3_header)
     }
 
     pub fn to_bytes<W>(&self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
     where
         W: std::io::Write,
     {
-        &buf.write_all(&MSeed3Header::REC_IND);
-        &buf.write_all(&[self.format_version, self.flags]);
-        &buf.write_u32::<LittleEndian>(self.nanosecond);
-        &buf.write_u16::<LittleEndian>(self.year);
-        &buf.write_u16::<LittleEndian>(self.day_of_year);
-        &buf.write_all(&[self.hour, self.minute, self.second, self.encoding]);
-        &buf.write_f64::<LittleEndian>(self.sample_rate_period);
-        &buf.write_u32::<LittleEndian>(self.num_samples);
-        &buf.write_u32::<LittleEndian>(self.crc);
-        &buf.write_all(&[self.publication_version, self.identifier_length]);
-        &buf.write_u16::<LittleEndian>(self.extra_headers_length);
-        &buf.write_u32::<LittleEndian>(self.data_length);
+        buf.write_all(&MSeed3Header::REC_IND)?;
+        buf.write_all(&[self.format_version, self.flags])?;
+        buf.write_u32::<LittleEndian>(self.nanosecond)?;
+        buf.write_u16::<LittleEndian>(self.year)?;
+        buf.write_u16::<LittleEndian>(self.day_of_year)?;
+        buf.write_all(&[self.hour, self.minute, self.second, self.encoding])?;
+        buf.write_f64::<LittleEndian>(self.sample_rate_period)?;
+        buf.write_u32::<LittleEndian>(self.num_samples)?;
+        buf.write_u32::<LittleEndian>(self.crc)?;
+        buf.write_all(&[self.publication_version, self.identifier_length])?;
+        buf.write_u16::<LittleEndian>(self.extra_headers_length)?;
+        buf.write_u32::<LittleEndian>(self.data_length)?;
         Ok(())
     }
 
@@ -385,12 +381,12 @@ impl MSeed3Record {
             .take(header.data_length as u64)
             .read_to_end(&mut encoded_data)?;
         let encoded_data = EncodedTimeseries::Raw(encoded_data);
-        return Ok(MSeed3Record {
+        Ok(MSeed3Record {
             header,
             identifier,
             extra_headers: ExtraHeaders::Raw(extra_headers_str),
             encoded_data,
-        });
+        })
     }
 
     pub fn save_to_bytes<W>(&mut self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
@@ -420,13 +416,22 @@ impl MSeed3Record {
         Ok(())
     }
 
-    pub fn parsed_json(&mut self) -> Result<&serde_json::Value, MSeedError> {
-        if let ExtraHeaders::Raw(eh_str) = &self.extra_headers {
-            let eh: serde_json::Value = serde_json::from_str(&eh_str)?;
-            self.extra_headers = ExtraHeaders::Parsed(eh);
+    pub fn parse_extra_headers(&mut self) -> Result<(), MSeedError> {
+        match &mut self.extra_headers {
+            ExtraHeaders::Parsed(_) => Ok(()),
+            ExtraHeaders::Raw(eh_str) => {
+                let eh_json = serde_json::from_str(eh_str)?;
+                let eh_parsed = ExtraHeaders::Parsed(eh_json);
+                self.extra_headers = eh_parsed;
+                Ok(())
+            }
         }
+    }
+
+    pub fn parsed_json(&mut self) -> Result<&serde_json::Value, MSeedError> {
+        self.parse_extra_headers()?;
         if let ExtraHeaders::Parsed(eh) = &self.extra_headers {
-            return Ok(&eh);
+            return Ok(eh);
         }
         Err(MSeedError::ExtraHeaderParse(String::from(
             "unable to parse extra headers",
