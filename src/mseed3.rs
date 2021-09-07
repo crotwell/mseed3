@@ -7,51 +7,37 @@ use serde_json;
 use std::convert::TryInto;
 use std::fmt;
 use std::fmt::Formatter;
-use std::fs::File;
 use std::io::prelude::*;
-use std::io::{BufReader, BufWriter};
+use std::io::{ BufWriter};
 use std::string::FromUtf8Error;
 use thiserror::Error;
 
-const BUFFER_SIZE: usize = 256;
-
+/// read a single little endian 64 bit float (8 bytes) and reset input
 fn read_le_f64(input: &mut &[u8]) -> f64 {
     let (int_bytes, rest) = input.split_at(std::mem::size_of::<f64>());
     *input = rest;
     f64::from_le_bytes(int_bytes.try_into().unwrap())
 }
 
+/// read a single little endian 32 bit float (4 bytes) and reset input
 fn read_le_u32(input: &mut &[u8]) -> u32 {
     let (int_bytes, rest) = input.split_at(std::mem::size_of::<u32>());
     *input = rest;
     u32::from_le_bytes(int_bytes.try_into().unwrap())
 }
 
+/// read a single little endian 16 bit int (2 bytes) and reset input
 fn read_le_u16(input: &mut &[u8]) -> u16 {
     let (int_bytes, rest) = input.split_at(std::mem::size_of::<u16>());
     *input = rest;
     u16::from_le_bytes(int_bytes.try_into().unwrap())
 }
 
-pub fn read_mseed3(file_name: &str) -> Result<Vec<MSeed3Record>, MSeedError> {
-    let file = File::open(&file_name)?;
-    let mut buf_reader = BufReader::new(file);
-    let mut records: Vec<MSeed3Record> = Vec::new();
-    while !buf_reader.fill_buf()?.is_empty() {
-        let result = MSeed3Record::from_reader(&mut buf_reader);
-        match result {
-            Ok(rec) => {
-                records.push(rec);
-            }
-            Err(e) => return Err(e),
-        }
-    }
-    Ok(records)
-}
-
+/// Size in bytes of the fixed header. This does not include the identifier, extra headers, or data.
 pub const FIXED_HEADER_SIZE: usize = 40;
 
-///
+/// Known data compression codes.
+/// ```text
 /// 0   Text, UTF-8 allowed, use ASCII for maximum portability, no structure defined
 /// 1   16-bit integer (two’s complement), little endian byte order
 /// 3   32-bit integer (two’s complement), little endian byte order
@@ -61,7 +47,8 @@ pub const FIXED_HEADER_SIZE: usize = 40;
 /// 11  Steim-2 integer compression, big endian byte order
 /// 19  Steim-3 integer compression, big endian (not in common use in archives)
 /// 100 Opaque data - only for use in special scenarios, not intended for archiving
-pub enum DataEncodings {
+/// ```
+pub enum DataEncoding {
     TEXT,
     INT16,
     INT32,
@@ -71,20 +58,55 @@ pub enum DataEncodings {
     STEIM2,
     STEIM3,
     OPAQUE,
+    UNKNOWN(u8),
 }
 
-impl DataEncodings {
+impl DataEncoding {
+    /// Creates a DataEncoding based on the input integer
+    pub fn from_int(val: u8) -> DataEncoding {
+        match val {
+            0 => DataEncoding::TEXT,
+            1 => DataEncoding::INT16,
+            3 => DataEncoding::INT32,
+            4 => DataEncoding::FLOAT32,
+            5 => DataEncoding::FLOAT64,
+            10 => DataEncoding::STEIM1,
+            11 => DataEncoding::STEIM2,
+            19 => DataEncoding::STEIM3,
+            100 => DataEncoding::OPAQUE,
+            _ => DataEncoding::UNKNOWN(val),
+        }
+    }
+    /// The integer value, as a u8, of the encoding
     pub fn value(&self) -> u8 {
+        match &self {
+            DataEncoding::TEXT => 0,
+            DataEncoding::INT16 => 1,
+            DataEncoding::INT32 => 3,
+            DataEncoding::FLOAT32 => 4,
+            DataEncoding::FLOAT64 => 5,
+            DataEncoding::STEIM1 => 10,
+            DataEncoding::STEIM2 => 11,
+            DataEncoding::STEIM3 => 19,
+            DataEncoding::OPAQUE => 100,
+            DataEncoding::UNKNOWN(val) => *val,
+        }
+    }
+}
+
+impl fmt::Display for DataEncoding {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            DataEncodings::TEXT => 0,
-            DataEncodings::INT16 => 1,
-            DataEncodings::INT32 => 3,
-            DataEncodings::FLOAT32 => 4,
-            DataEncodings::FLOAT64 => 5,
-            DataEncodings::STEIM1 => 10,
-            DataEncodings::STEIM2 => 11,
-            DataEncodings::STEIM3 => 19,
-            DataEncodings::OPAQUE => 100,
+            DataEncoding::TEXT => write!(f, "Text, UTF-8 allowed, use ASCII for maximum portability, no structure defined"),
+            DataEncoding::INT16 => write!(f, "16-bit integer (two’s complement), little endian byte order"),
+            DataEncoding::INT32 => write!(f, "32-bit integer (two’s complement), little endian byte order"),
+            DataEncoding::FLOAT32 => write!(f, "32-bit floats (IEEE float), little endian byte order"),
+            DataEncoding::FLOAT64 => write!(f, "64-bit floats (IEEE double), little endian byte order"),
+            DataEncoding::STEIM1 => write!(f, "Steim-1 integer compression, big endian byte order"),
+            DataEncoding::STEIM2 => write!(f, "Steim-2 integer compression, big endian byte order"),
+            DataEncoding::STEIM3 => write!(f, "Steim-3 integer compression, big endian (not in common use in archives)"),
+            DataEncoding::OPAQUE => write!(f, "Opaque data - only for use in special scenarios, not intended for archiving"),
+            DataEncoding::UNKNOWN(val) => write!(f, "Unknown encoding: {}", val),
         }
     }
 }
@@ -127,34 +149,43 @@ impl MSeed3Header {
         if buffer[0] != MSeed3Header::REC_IND[0] || buffer[1] != MSeed3Header::REC_IND[1] {
             return Err(MSeedError::BadRecordIndicator(buffer[0], buffer[1]));
         }
+        let record_indicator = String::from("MS");
+        let format_version = buffer[2];
+        let flags = buffer[3];
         // skip M, S, format, flags
         let (_, mut header_bytes) = buffer.split_at(4);
         let nanosecond = read_le_u32(&mut header_bytes);
         let year = read_le_u16(&mut header_bytes);
         let day_of_year = read_le_u16(&mut header_bytes);
+        let hour=  buffer[12];
+        let minute = buffer[13];
+        let second = buffer[14];
+        let encoding = buffer[15];
         let _ = read_le_u32(&mut header_bytes); // skip hour-encoding
         let sample_rate_period = read_le_f64(&mut header_bytes);
         let num_samples = read_le_u32(&mut header_bytes);
         let crc = read_le_u32(&mut header_bytes);
+        let publication_version=  buffer[32];
+        let identifier_length = buffer[33];
         let _ = read_le_u16(&mut header_bytes); // skip pub ver and id len
         let extra_headers_length = read_le_u16(&mut header_bytes);
         let data_length = read_le_u32(&mut header_bytes);
         let ms3_header = MSeed3Header {
-            record_indicator: String::from("MS"),
-            format_version: buffer[2],
-            flags: buffer[3],
+            record_indicator,
+            format_version,
+            flags,
             nanosecond,
             year,
             day_of_year,
-            hour: buffer[12],
-            minute: buffer[13],
-            second: buffer[14],
-            encoding: buffer[15],
+            hour,
+            minute,
+            second,
+            encoding,
             sample_rate_period,
             num_samples,
             crc,
-            publication_version: buffer[32],
-            identifier_length: buffer[33],
+            publication_version,
+            identifier_length,
             extra_headers_length,
             data_length,
         };
@@ -291,6 +322,7 @@ impl EncodedTimeseries {
         }
     }
 }
+
 impl fmt::Display for EncodedTimeseries {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -356,8 +388,8 @@ impl MSeed3Record {
     }
 
     pub fn from_reader<R: BufRead>(buf_reader: &mut R) -> Result<MSeed3Record, MSeedError> {
-        let mut buffer = [0; BUFFER_SIZE];
-        let _ = buf_reader.by_ref().take(40).read(&mut buffer)?;
+        let mut buffer = [0; FIXED_HEADER_SIZE];
+        let _ = buf_reader.by_ref().take(FIXED_HEADER_SIZE as u64).read(&mut buffer)?;
         let header = MSeed3Header::from_bytes(&buffer)?;
         let mut buffer = Vec::new();
         let _ = buf_reader
@@ -467,11 +499,7 @@ impl fmt::Display for MSeed3Header {
         //               }
         //             }
 
-        let encode_name = match self.encoding {
-            10 => "STEIM-1 integer compression",
-            11 => "STEIM-2 integer compression",
-            _ => "unknown",
-        };
+        let encode_name = DataEncoding::from_int(self.encoding).to_string();
         let lines = [
             format!(
                 "version ${}, ${} bytes (format: ${})\n",
@@ -634,7 +662,7 @@ mod tests {
         let dummy_data = vec![0, -1, 2, -3, 4, -5];
         head.data_length = (dummy_data.len() as u32 * 4) as u32;
         head.num_samples = dummy_data.len() as u32;
-        head.encoding = DataEncodings::INT32.value();
+        head.encoding = DataEncoding::INT32.value();
         let encoded_data = EncodedTimeseries::Int32(dummy_data);
         let mut rec = MSeed3Record::new(head, identifier, extra_headers, encoded_data);
         let mut out = Vec::new();

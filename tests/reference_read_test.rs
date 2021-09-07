@@ -1,8 +1,10 @@
 use mseed3;
-use mseed3::mseed3::MSeedError;
+use mseed3::MSeedError;
 use serde_json;
 use serde_json::Value;
 use std::fs;
+use std::io::BufReader;
+use std::fs::File;
 
 #[test]
 fn test_ref_data() -> Result<(), MSeedError> {
@@ -21,9 +23,11 @@ fn test_ref_data() -> Result<(), MSeedError> {
     ];
     for base_name in base_name_list {
         let ms3_filename = format!("tests/reference-data/reference-{}.xseed", base_name);
+        let file = File::open(&ms3_filename)?;
+        let mut buf_reader = BufReader::new(file);
+        let records: Vec<mseed3::MSeed3Record> =
+            mseed3::read_mseed3(&mut buf_reader)?;
         let json_filename = format!("tests/reference-data/reference-{}.json", base_name);
-        let records: Vec<mseed3::mseed3::MSeed3Record> =
-            mseed3::mseed3::read_mseed3(&ms3_filename)?;
         let json: Value = read_ref_json(&json_filename)?;
         let first;
         match records.first() {
