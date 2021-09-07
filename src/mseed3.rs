@@ -111,6 +111,7 @@ impl fmt::Display for DataEncoding {
     }
 }
 
+/// The fixed section of the header. Does not contain the identifier, extra headers, or data.
 pub struct MSeed3Header {
     pub record_indicator: String,
     pub format_version: u8,
@@ -121,7 +122,7 @@ pub struct MSeed3Header {
     pub hour: u8,
     pub minute: u8,
     pub second: u8,
-    pub encoding: u8,
+    pub encoding: DataEncoding,
     pub sample_rate_period: f64,
     pub num_samples: u32,
     pub crc: u32,
@@ -132,13 +133,23 @@ pub struct MSeed3Header {
 }
 
 impl MSeed3Header {
+    /// First two bytes of a miniseed3 header must be `MS`
     pub const REC_IND: [u8; 2] = [b'M', b'S'];
+    /// The header field representing the length of the identifier. Note that this is the value
+    /// at the time the record was created. If the identifier was changed this value may be
+    /// wrong and will be recalculated on write.
     pub fn raw_identifier_length(&self) -> u8 {
         self.identifier_length
     }
+    /// The header field representing the length of the extra headers string. Note that this is the value
+    /// at the time the record was created. If the extra headers have been changed this value may be
+    /// wrong and will be recalculated on write.
     pub fn raw_extra_headers_length(&self) -> u16 {
         self.extra_headers_length
     }
+    /// The header field representing the length of the timeseries data. Note that this is the value
+    /// at the time the record was created. If the data was changed this value may be
+    /// wrong and will be recalculated on write.
     pub fn raw_data_length(&self) -> u32 {
         self.data_length
     }
@@ -157,15 +168,15 @@ impl MSeed3Header {
         let nanosecond = read_le_u32(&mut header_bytes);
         let year = read_le_u16(&mut header_bytes);
         let day_of_year = read_le_u16(&mut header_bytes);
-        let hour=  buffer[12];
+        let hour = buffer[12];
         let minute = buffer[13];
         let second = buffer[14];
-        let encoding = buffer[15];
+        let encoding = DataEncoding::from_int(buffer[15]);
         let _ = read_le_u32(&mut header_bytes); // skip hour-encoding
         let sample_rate_period = read_le_f64(&mut header_bytes);
         let num_samples = read_le_u32(&mut header_bytes);
         let crc = read_le_u32(&mut header_bytes);
-        let publication_version=  buffer[32];
+        let publication_version = buffer[32];
         let identifier_length = buffer[33];
         let _ = read_le_u16(&mut header_bytes); // skip pub ver and id len
         let extra_headers_length = read_le_u16(&mut header_bytes);
@@ -201,7 +212,7 @@ impl MSeed3Header {
         buf.write_u32::<LittleEndian>(self.nanosecond)?;
         buf.write_u16::<LittleEndian>(self.year)?;
         buf.write_u16::<LittleEndian>(self.day_of_year)?;
-        buf.write_all(&[self.hour, self.minute, self.second, self.encoding])?;
+        buf.write_all(&[self.hour, self.minute, self.second, self.encoding.value()])?;
         buf.write_f64::<LittleEndian>(self.sample_rate_period)?;
         buf.write_u32::<LittleEndian>(self.num_samples)?;
         buf.write_u32::<LittleEndian>(self.crc)?;
@@ -321,6 +332,23 @@ impl EncodedTimeseries {
             EncodedTimeseries::Opaque(v) => v.len() as u32,
         }
     }
+    /// Reconciles the number of samples in the header with the size of the EncodedTimeseries.
+    /// For the primitive types, Int16, Int32, Float32 and Float64 the value is calculated from
+    /// the length of the array. For the remaining, the passed in header num_samples is
+    /// return as it is assumed to be correct.
+    pub fn reconcile_num_samples(&self, header_num_sample: u32) -> u32 {
+        match self {
+            EncodedTimeseries::Int16(v) => v.len() as u32,
+            EncodedTimeseries::Int32(v) => v.len() as u32,
+            EncodedTimeseries::Float32(v) => v.len() as u32,
+            EncodedTimeseries::Float64(v) => v.len() as u32,
+            EncodedTimeseries::Raw(_) => header_num_sample,
+            EncodedTimeseries::Steim1(_) => header_num_sample,
+            EncodedTimeseries::Steim2(_) => header_num_sample,
+            EncodedTimeseries::Steim3(_) => header_num_sample,
+            EncodedTimeseries::Opaque(_) => header_num_sample,
+        }
+    }
 }
 
 impl fmt::Display for EncodedTimeseries {
@@ -390,7 +418,7 @@ impl MSeed3Record {
     pub fn from_reader<R: BufRead>(buf_reader: &mut R) -> Result<MSeed3Record, MSeedError> {
         let mut buffer = [0; FIXED_HEADER_SIZE];
         let _ = buf_reader.by_ref().take(FIXED_HEADER_SIZE as u64).read(&mut buffer)?;
-        let header = MSeed3Header::from_bytes(&buffer)?;
+        let mut header = MSeed3Header::from_bytes(&buffer)?;
         let mut buffer = Vec::new();
         let _ = buf_reader
             .by_ref()
@@ -410,6 +438,16 @@ impl MSeed3Record {
         } else {
             extra_headers_str = String::from("{}");
         }
+        let expected_data_length = match header.encoding {
+            DataEncoding::INT16 => 2*header.num_samples,
+            DataEncoding::INT32 => 4*header.num_samples,
+            DataEncoding::FLOAT32 => 4*header.num_samples,
+            DataEncoding::FLOAT64 => 8*header.num_samples,
+            _ => header.data_length,
+        };
+        if header.data_length != expected_data_length {
+            return Err(MSeedError::DataLength(expected_data_length, header.num_samples, header.encoding.value(), header.data_length));
+        }
 
         let mut encoded_data = Vec::new();
         let _ = buf_reader
@@ -417,6 +455,7 @@ impl MSeed3Record {
             .take(header.data_length as u64)
             .read_to_end(&mut encoded_data)?;
         let encoded_data = EncodedTimeseries::Raw(encoded_data);
+        header.num_samples = encoded_data.reconcile_num_samples(header.num_samples);
         Ok(MSeed3Record {
             header,
             identifier,
@@ -432,6 +471,7 @@ impl MSeed3Record {
         let id_bytes = self.identifier.as_bytes();
         self.header.identifier_length = id_bytes.len() as u8;
         self.header.data_length = self.encoded_data.byte_len();
+        self.header.num_samples = self.encoded_data.reconcile_num_samples(self.header.num_samples);
 
         let mut eh_bytes = Vec::new();
         match &self.extra_headers {
@@ -499,7 +539,7 @@ impl fmt::Display for MSeed3Header {
         //               }
         //             }
 
-        let encode_name = DataEncoding::from_int(self.encoding).to_string();
+        let encode_name = self.encoding.to_string();
         let lines = [
             format!(
                 "version ${}, ${} bytes (format: ${})\n",
@@ -553,6 +593,8 @@ pub enum MSeedError {
     ExtraHeaderParse(String),
     #[error("Unknown data encoding: `{0}`")]
     UnknownEncoding(u8),
+    #[error("Expected {0} bytes for {1} samples as encoding type {2} but header has data_length={3} bytes.",)]
+    DataLength(u32, u32, u8, u32 ),
     #[error("MSeed3 error: `{0}`")]
     Unknown(String),
 }
@@ -619,7 +661,7 @@ mod tests {
         assert_eq!(head.hour, 0);
         assert_eq!(head.minute, 0);
         assert_eq!(head.second, 0);
-        assert_eq!(head.encoding, 1);
+        assert_eq!(head.encoding.value(), 1);
         assert_eq!(head.sample_rate_period, 1.0 as f64);
         assert_eq!(head.num_samples, 500);
         assert_eq!(head.crc, 0x642B7389);
@@ -662,7 +704,7 @@ mod tests {
         let dummy_data = vec![0, -1, 2, -3, 4, -5];
         head.data_length = (dummy_data.len() as u32 * 4) as u32;
         head.num_samples = dummy_data.len() as u32;
-        head.encoding = DataEncoding::INT32.value();
+        head.encoding = DataEncoding::INT32;
         let encoded_data = EncodedTimeseries::Int32(dummy_data);
         let mut rec = MSeed3Record::new(head, identifier, extra_headers, encoded_data);
         let mut out = Vec::new();

@@ -45,7 +45,7 @@ fn test_ref_data() -> Result<(), MSeedError> {
             first.header.get_start_as_iso(),
             json["StartTime"].as_str().unwrap()
         );
-        assert_eq!(first.header.encoding, json["EncodingFormat"]);
+        assert_eq!(first.header.encoding.value(), json["EncodingFormat"]);
         assert_eq!(first.header.sample_rate_period, json["SampleRate"]);
         assert_eq!(first.header.num_samples, json["SampleCount"]);
         assert_eq!(first.header.crc_hex_string(), json["CRC"].as_str().unwrap());
