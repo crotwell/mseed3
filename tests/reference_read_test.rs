@@ -1,12 +1,11 @@
 use mseed3;
-use mseed3::{MSeedError, MSeed3Record};
+use mseed3::{MSeed3Record, MSeedError};
 use serde_json;
 use serde_json::Value;
 use std::fs;
-use std::io::{BufReader, Write};
 use std::fs::File;
-use byteorder::{LittleEndian, WriteBytesExt};
-use std::io::{ BufWriter};
+use std::io::BufWriter;
+use std::io::{BufReader, Write};
 
 #[test]
 fn test_ref_data() -> Result<(), MSeedError> {
@@ -58,12 +57,11 @@ fn test_ref_data() -> Result<(), MSeedError> {
         let crc_written: u32;
         let mut out = Vec::new();
         {
-
             let mut buf_writer = BufWriter::new(&mut out);
             let t = first.write_to(&mut buf_writer).unwrap();
             bytes_written = t.0;
             crc_written = t.1;
-            buf_writer.flush();
+            buf_writer.flush()?;
         }
         assert_eq!(first.header.crc, crc_written);
         assert_eq!(out.len() as u32, bytes_written);

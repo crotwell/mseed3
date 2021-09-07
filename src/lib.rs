@@ -4,9 +4,12 @@
 //! and <https://miniseed3.readthedocs.io/en/latest/> for now, or
 //! <https://docs.fdsn.org/projects/miniSEED3> once approved by FDSN
 mod mseed3;
-use std::io::{BufRead};
+use std::io::BufRead;
 
-pub use self::mseed3::{MSeed3Record, MSeedError, MSeed3Header, DataEncoding, ExtraHeaders, EncodedTimeseries, FIXED_HEADER_SIZE};
+pub use self::mseed3::{
+    DataEncoding, EncodedTimeseries, ExtraHeaders, MSeed3Header, MSeed3Record, MSeedError,
+    FIXED_HEADER_SIZE,
+};
 
 /// Read miniseed3 records from a BufReader.
 ///

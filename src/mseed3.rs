@@ -3,15 +3,15 @@
 use byteorder::{LittleEndian, WriteBytesExt};
 use chrono::prelude::*;
 use chrono::Utc;
+use crc::{Crc, CRC_32_ISCSI};
 use serde_json;
 use std::convert::TryInto;
 use std::fmt;
 use std::fmt::Formatter;
 use std::io::prelude::*;
-use std::io::{ BufWriter};
+use std::io::BufWriter;
 use std::string::FromUtf8Error;
 use thiserror::Error;
-use crc::{Crc, CRC_32_ISCSI};
 
 pub const CASTAGNOLI: Crc<u32> = Crc::<u32>::new(&CRC_32_ISCSI);
 
@@ -39,6 +39,7 @@ fn read_le_u16(input: &mut &[u8]) -> u16 {
 /// Size in bytes of the fixed header. This does not include the identifier, extra headers, or data.
 pub const FIXED_HEADER_SIZE: usize = 40;
 
+/// Offset to the 4-byte CRC within the header.
 pub const CRC_OFFSET: usize = 28;
 
 /// Known data compression codes.
@@ -103,15 +104,34 @@ impl DataEncoding {
 impl fmt::Display for DataEncoding {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            DataEncoding::TEXT => write!(f, "Text, UTF-8 allowed, use ASCII for maximum portability, no structure defined"),
-            DataEncoding::INT16 => write!(f, "16-bit integer (two’s complement), little endian byte order"),
-            DataEncoding::INT32 => write!(f, "32-bit integer (two’s complement), little endian byte order"),
-            DataEncoding::FLOAT32 => write!(f, "32-bit floats (IEEE float), little endian byte order"),
-            DataEncoding::FLOAT64 => write!(f, "64-bit floats (IEEE double), little endian byte order"),
+            DataEncoding::TEXT => write!(
+                f,
+                "Text, UTF-8 allowed, use ASCII for maximum portability, no structure defined"
+            ),
+            DataEncoding::INT16 => write!(
+                f,
+                "16-bit integer (two’s complement), little endian byte order"
+            ),
+            DataEncoding::INT32 => write!(
+                f,
+                "32-bit integer (two’s complement), little endian byte order"
+            ),
+            DataEncoding::FLOAT32 => {
+                write!(f, "32-bit floats (IEEE float), little endian byte order")
+            }
+            DataEncoding::FLOAT64 => {
+                write!(f, "64-bit floats (IEEE double), little endian byte order")
+            }
             DataEncoding::STEIM1 => write!(f, "Steim-1 integer compression, big endian byte order"),
             DataEncoding::STEIM2 => write!(f, "Steim-2 integer compression, big endian byte order"),
-            DataEncoding::STEIM3 => write!(f, "Steim-3 integer compression, big endian (not in common use in archives)"),
-            DataEncoding::OPAQUE => write!(f, "Opaque data - only for use in special scenarios, not intended for archiving"),
+            DataEncoding::STEIM3 => write!(
+                f,
+                "Steim-3 integer compression, big endian (not in common use in archives)"
+            ),
+            DataEncoding::OPAQUE => write!(
+                f,
+                "Opaque data - only for use in special scenarios, not intended for archiving"
+            ),
             DataEncoding::UNKNOWN(val) => write!(f, "Unknown encoding: {}", val),
         }
     }
@@ -161,6 +181,7 @@ impl MSeed3Header {
         self.data_length
     }
 
+    /// Reads a miniseed3 header from a BufReader.
     pub fn from_bytes(buffer: &[u8]) -> Result<MSeed3Header, MSeedError> {
         print!("read_mseed3_buf...");
         assert_eq!(&buffer[0..2], "MS".as_bytes());
@@ -210,6 +231,7 @@ impl MSeed3Header {
         Ok(ms3_header)
     }
 
+    /// Writes a miniseed3 header to a BufWriter.
     pub fn write_to<W>(&self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
     where
         W: std::io::Write,
@@ -229,25 +251,33 @@ impl MSeed3Header {
         Ok(())
     }
 
-    pub fn get_start_as_iso(&self) -> String {
-        let start = Utc
-            .yo(self.year as i32, self.day_of_year as u32)
+    /// Start time as DateTime struct.
+    pub fn get_start_as_utc(&self) -> DateTime<Utc> {
+        Utc.yo(self.year as i32, self.day_of_year as u32)
             .and_hms_nano(
                 self.hour as u32,
                 self.minute as u32,
                 self.second as u32,
                 self.nanosecond,
-            );
+            )
+    }
 
+    /// Start time as ISO8601 string
+    pub fn get_start_as_iso(&self) -> String {
+        let start = self.get_start_as_utc();
         //        start.format("%Y-%jT%H:%M:%S%.9fZ").to_string()
         start.format("%Y-%m-%dT%H:%M:%S%.9fZ").to_string()
     }
 
+    /// Format CRC as a hex string, like 0x106EAFA5
     pub fn crc_hex_string(&self) -> String {
         //        format!("{:#010X}", self.crc)
         format!("{:#X}", self.crc)
     }
 
+    /// The size of the data record, including the identifier, extra headers and data. Note that
+    /// this uses header values set on read, and so if any of these have changed, this value
+    /// will be wrong.
     pub fn get_record_size(&self) -> u32 {
         FIXED_HEADER_SIZE as u32
             + self.identifier_length as u32
@@ -427,7 +457,10 @@ impl MSeed3Record {
 
     pub fn from_reader<R: BufRead>(buf_reader: &mut R) -> Result<MSeed3Record, MSeedError> {
         let mut buffer = [0; FIXED_HEADER_SIZE];
-        let _ = buf_reader.by_ref().take(FIXED_HEADER_SIZE as u64).read(&mut buffer)?;
+        let _ = buf_reader
+            .by_ref()
+            .take(FIXED_HEADER_SIZE as u64)
+            .read(&mut buffer)?;
         let mut header = MSeed3Header::from_bytes(&buffer)?;
         let mut buffer = Vec::new();
         let _ = buf_reader
@@ -449,14 +482,19 @@ impl MSeed3Record {
             extra_headers_str = String::from("{}");
         }
         let expected_data_length = match header.encoding {
-            DataEncoding::INT16 => 2*header.num_samples,
-            DataEncoding::INT32 => 4*header.num_samples,
-            DataEncoding::FLOAT32 => 4*header.num_samples,
-            DataEncoding::FLOAT64 => 8*header.num_samples,
+            DataEncoding::INT16 => 2 * header.num_samples,
+            DataEncoding::INT32 => 4 * header.num_samples,
+            DataEncoding::FLOAT32 => 4 * header.num_samples,
+            DataEncoding::FLOAT64 => 8 * header.num_samples,
             _ => header.data_length,
         };
         if header.data_length != expected_data_length {
-            return Err(MSeedError::DataLength(expected_data_length, header.num_samples, header.encoding.value(), header.data_length));
+            return Err(MSeedError::DataLength(
+                expected_data_length,
+                header.num_samples,
+                header.encoding.value(),
+                header.data_length,
+            ));
         }
 
         let mut encoded_data = Vec::new();
@@ -480,8 +518,8 @@ impl MSeed3Record {
     /// The number of samples is sanity checked against the data, but trusts the header in cases
     /// of compressed or opaque data.
     pub fn write_to<W>(&mut self, buf: &mut BufWriter<W>) -> Result<(u32, u32), MSeedError>
-        where
-            W: std::io::Write,
+    where
+        W: std::io::Write,
     {
         self.header.crc = 0;
         let mut out = Vec::new();
@@ -494,7 +532,7 @@ impl MSeed3Record {
         self.header.crc = crc;
         buf.write_all(&out[0..CRC_OFFSET])?;
         buf.write_u32::<LittleEndian>(crc)?;
-        buf.write_all(&out[(CRC_OFFSET+4)..])?;
+        buf.write_all(&out[(CRC_OFFSET + 4)..])?;
         Ok((out.len() as u32, crc))
     }
 
@@ -509,7 +547,9 @@ impl MSeed3Record {
         let id_bytes = self.identifier.as_bytes();
         self.header.identifier_length = id_bytes.len() as u8;
         self.header.data_length = self.encoded_data.byte_len();
-        self.header.num_samples = self.encoded_data.reconcile_num_samples(self.header.num_samples);
+        self.header.num_samples = self
+            .encoded_data
+            .reconcile_num_samples(self.header.num_samples);
 
         let mut eh_bytes = Vec::new();
         match &self.extra_headers {
@@ -632,7 +672,7 @@ pub enum MSeedError {
     #[error("Unknown data encoding: `{0}`")]
     UnknownEncoding(u8),
     #[error("Expected {0} bytes for {1} samples as encoding type {2} but header has data_length={3} bytes.",)]
-    DataLength(u32, u32, u8, u32 ),
+    DataLength(u32, u32, u8, u32),
     #[error("MSeed3 error: `{0}`")]
     Unknown(String),
 }
@@ -735,7 +775,6 @@ mod tests {
             String::from_utf8(get_dummy_header()[FIXED_HEADER_SIZE..64].to_owned()).unwrap();
 
         let mut head = MSeed3Header::from_bytes(buf).unwrap();
-        let original_head = MSeed3Header::from_bytes(buf).unwrap();
         head.identifier_length = identifier.len() as u8;
         let dummy_eh = String::from("");
         head.extra_headers_length = dummy_eh.len() as u16;
