@@ -1,17 +1,17 @@
 // mod mseed3
 
+use byteorder::{LittleEndian, WriteBytesExt};
 use chrono::prelude::*;
 use chrono::Utc;
 use serde_json;
 use std::convert::TryInto;
 use std::fmt;
+use std::fmt::Formatter;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
 use std::string::FromUtf8Error;
 use thiserror::Error;
-use byteorder::{WriteBytesExt, LittleEndian};
-use std::fmt::Formatter;
 
 const BUFFER_SIZE: usize = 256;
 
@@ -41,12 +41,12 @@ pub fn read_mseed3(file_name: &str) -> Result<Vec<MSeed3Record>, MSeedError> {
     let file = File::open(&file_name)?;
     let mut buf_reader = BufReader::new(file);
     let mut records: Vec<MSeed3Record> = Vec::new();
-    while ! buf_reader.fill_buf()?.is_empty() {
+    while !buf_reader.fill_buf()?.is_empty() {
         let result = MSeed3Record::from_bytes(&mut buf_reader);
         match result {
             Ok(rec) => {
                 records.push(rec);
-            },
+            }
             Err(e) => return Err(e),
         }
     }
@@ -54,7 +54,6 @@ pub fn read_mseed3(file_name: &str) -> Result<Vec<MSeed3Record>, MSeedError> {
 }
 
 pub const FIXED_HEADER_SIZE: usize = 40;
-
 
 ///
 /// 0 	Text, UTF-8 allowed, use ASCII for maximum portability, no structure defined
@@ -115,10 +114,16 @@ pub struct MSeed3Header {
 }
 
 impl MSeed3Header {
-    pub const REC_IND: [u8; 2] = [ b'M', b'S' ];
-    pub fn raw_identifier_length(&self) -> u8 { self.identifier_length}
-    pub fn raw_extra_headers_length(&self) -> u16 { self.extra_headers_length}
-    pub fn raw_data_length(&self) -> u32 { self.data_length}
+    pub const REC_IND: [u8; 2] = [b'M', b'S'];
+    pub fn raw_identifier_length(&self) -> u8 {
+        self.identifier_length
+    }
+    pub fn raw_extra_headers_length(&self) -> u16 {
+        self.extra_headers_length
+    }
+    pub fn raw_data_length(&self) -> u32 {
+        self.data_length
+    }
 
     pub fn from_bytes(buffer: &[u8]) -> Result<MSeed3Header, MSeedError> {
         print!("read_mseed3_buf...");
@@ -160,9 +165,9 @@ impl MSeed3Header {
         return Ok(ms3_header);
     }
 
-    pub fn to_bytes<W>(&self, buf: &mut BufWriter<W>) -> Result<(),MSeedError>
+    pub fn to_bytes<W>(&self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
     where
-    W: std::io::Write
+        W: std::io::Write,
     {
         &buf.write_all(&MSeed3Header::REC_IND);
         &buf.write_all(&[self.format_version, self.flags]);
@@ -189,17 +194,20 @@ impl MSeed3Header {
                 self.nanosecond,
             );
 
-//        start.format("%Y-%jT%H:%M:%S%.9fZ").to_string()
+        //        start.format("%Y-%jT%H:%M:%S%.9fZ").to_string()
         start.format("%Y-%m-%dT%H:%M:%S%.9fZ").to_string()
     }
 
     pub fn crc_hex_string(&self) -> String {
-//        format!("{:#010X}", self.crc)
+        //        format!("{:#010X}", self.crc)
         format!("{:#X}", self.crc)
     }
 
     pub fn get_record_size(&self) -> u32 {
-        FIXED_HEADER_SIZE as u32 + self.identifier_length as u32 + self.extra_headers_length as u32 + self.data_length
+        FIXED_HEADER_SIZE as u32
+            + self.identifier_length as u32
+            + self.extra_headers_length as u32
+            + self.data_length
     }
 }
 
@@ -221,55 +229,88 @@ pub enum EncodedTimeseries {
 }
 
 impl EncodedTimeseries {
-    pub fn save_to_bytes<W>(&self, buf: &mut BufWriter<W>) -> Result<(),MSeedError>
-        where
-            W: std::io::Write
+    pub fn save_to_bytes<W>(&self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
+    where
+        W: std::io::Write,
     {
         match self {
-            EncodedTimeseries::Raw(v) => { buf.write_all(v)?;Ok(()) },
+            EncodedTimeseries::Raw(v) => {
+                buf.write_all(v)?;
+                Ok(())
+            }
             EncodedTimeseries::Int16(v) => {
                 for &el in v {
                     buf.write_i16::<LittleEndian>(el)?;
                 }
                 Ok(())
-            },
+            }
             EncodedTimeseries::Int32(v) => {
                 for &el in v {
                     buf.write_i32::<LittleEndian>(el)?;
                 }
                 Ok(())
-            },
+            }
             EncodedTimeseries::Float32(v) => {
                 for &el in v {
                     buf.write_f32::<LittleEndian>(el)?;
                 }
                 Ok(())
-            },
+            }
             EncodedTimeseries::Float64(v) => {
                 for &el in v {
                     buf.write_f64::<LittleEndian>(el)?;
                 }
                 Ok(())
-            },
-            EncodedTimeseries::Steim1(v) => { buf.write_all(v)?;Ok(()) },
-            EncodedTimeseries::Steim2(v) => { buf.write_all(v)?;Ok(()) },
-            EncodedTimeseries::Steim3(v) => { buf.write_all(v)?;Ok(()) },
-            EncodedTimeseries::Opaque(v) => { buf.write_all(v)?;Ok(()) },
+            }
+            EncodedTimeseries::Steim1(v) => {
+                buf.write_all(v)?;
+                Ok(())
+            }
+            EncodedTimeseries::Steim2(v) => {
+                buf.write_all(v)?;
+                Ok(())
+            }
+            EncodedTimeseries::Steim3(v) => {
+                buf.write_all(v)?;
+                Ok(())
+            }
+            EncodedTimeseries::Opaque(v) => {
+                buf.write_all(v)?;
+                Ok(())
+            }
         }
     }
 }
 impl fmt::Display for EncodedTimeseries {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            EncodedTimeseries::Raw(v) => { write!(f, "Raw bytes, {} bytes", v.len())},
-            EncodedTimeseries::Int16(v) => { write!(f, "Int16, {} samples", v.len())},
-            EncodedTimeseries::Int32(v) => { write!(f, "Int32, {} samples", v.len())},
-            EncodedTimeseries::Float32(v) => { write!(f, "Float32, {} samples", v.len())},
-            EncodedTimeseries::Float64(v) => { write!(f, "Float64, {} samples", v.len())},
-            EncodedTimeseries::Steim1(v) => { write!(f, "Steim1, {} bytes", v.len())},
-            EncodedTimeseries::Steim2(v) => { write!(f, "Steim2, {} bytes", v.len())},
-            EncodedTimeseries::Steim3(v) => { write!(f, "Steim3, {} bytes", v.len())},
-            EncodedTimeseries::Opaque(v) => { write!(f, "Opaque, {} bytes", v.len())},
+            EncodedTimeseries::Raw(v) => {
+                write!(f, "Raw bytes, {} bytes", v.len())
+            }
+            EncodedTimeseries::Int16(v) => {
+                write!(f, "Int16, {} samples", v.len())
+            }
+            EncodedTimeseries::Int32(v) => {
+                write!(f, "Int32, {} samples", v.len())
+            }
+            EncodedTimeseries::Float32(v) => {
+                write!(f, "Float32, {} samples", v.len())
+            }
+            EncodedTimeseries::Float64(v) => {
+                write!(f, "Float64, {} samples", v.len())
+            }
+            EncodedTimeseries::Steim1(v) => {
+                write!(f, "Steim1, {} bytes", v.len())
+            }
+            EncodedTimeseries::Steim2(v) => {
+                write!(f, "Steim2, {} bytes", v.len())
+            }
+            EncodedTimeseries::Steim3(v) => {
+                write!(f, "Steim3, {} bytes", v.len())
+            }
+            EncodedTimeseries::Opaque(v) => {
+                write!(f, "Opaque, {} bytes", v.len())
+            }
         }
     }
 }
@@ -282,19 +323,24 @@ pub struct MSeed3Record {
 }
 
 impl MSeed3Record {
-    pub fn new(header: MSeed3Header, identifier: String, extra_headers: ExtraHeaders, encoded_data: EncodedTimeseries) -> MSeed3Record {
+    pub fn new(
+        header: MSeed3Header,
+        identifier: String,
+        extra_headers: ExtraHeaders,
+        encoded_data: EncodedTimeseries,
+    ) -> MSeed3Record {
         let mut header = header;
         header.identifier_length = identifier.len() as u8;
         match &extra_headers {
             ExtraHeaders::Raw(v) => header.extra_headers_length = v.len() as u16,
-            _ => header.extra_headers_length = 0
+            _ => header.extra_headers_length = 0,
         }
         match &encoded_data {
             EncodedTimeseries::Raw(v) => header.data_length = v.len() as u32,
-            EncodedTimeseries::Int16(v) => header.data_length = 2*v.len() as u32,
-            EncodedTimeseries::Int32(v) => header.data_length = 4*v.len() as u32,
-            EncodedTimeseries::Float32(v) => header.data_length = 4*v.len() as u32,
-            EncodedTimeseries::Float64(v) => header.data_length = 8*v.len() as u32,
+            EncodedTimeseries::Int16(v) => header.data_length = 2 * v.len() as u32,
+            EncodedTimeseries::Int32(v) => header.data_length = 4 * v.len() as u32,
+            EncodedTimeseries::Float32(v) => header.data_length = 4 * v.len() as u32,
+            EncodedTimeseries::Float64(v) => header.data_length = 8 * v.len() as u32,
             EncodedTimeseries::Steim1(v) => header.data_length = v.len() as u32,
             EncodedTimeseries::Steim2(v) => header.data_length = v.len() as u32,
             EncodedTimeseries::Steim3(v) => header.data_length = v.len() as u32,
@@ -321,7 +367,7 @@ impl MSeed3Record {
         let id_result = String::from_utf8(buffer);
         let identifier = match id_result {
             Ok(id) => id,
-            Err(e) => return Err(MSeedError::FromUtf8Error(e))
+            Err(e) => return Err(MSeedError::FromUtf8Error(e)),
         };
         let extra_headers_str: String;
         if header.extra_headers_length > 2 {
@@ -347,10 +393,9 @@ impl MSeed3Record {
         });
     }
 
-
-    pub fn save_to_bytes<W>(&mut self, buf: &mut BufWriter<W>) -> Result<(),MSeedError>
+    pub fn save_to_bytes<W>(&mut self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
     where
-    W: std::io::Write
+        W: std::io::Write,
     {
         let id_bytes = self.identifier.as_bytes();
         self.header.identifier_length = id_bytes.len() as u8;
@@ -375,9 +420,7 @@ impl MSeed3Record {
         Ok(())
     }
 
-    pub fn parsed_json(
-        &mut self,
-    ) -> Result<&serde_json::Value, MSeedError> {
+    pub fn parsed_json(&mut self) -> Result<&serde_json::Value, MSeedError> {
         if let ExtraHeaders::Raw(eh_str) = &self.extra_headers {
             let eh: serde_json::Value = serde_json::from_str(&eh_str)?;
             self.extra_headers = ExtraHeaders::Parsed(eh);
@@ -385,7 +428,9 @@ impl MSeed3Record {
         if let ExtraHeaders::Parsed(eh) = &self.extra_headers {
             return Ok(&eh);
         }
-        Err(MSeedError::ExtraHeaderParse(String::from("unable to parse extra headers")))
+        Err(MSeedError::ExtraHeaderParse(String::from(
+            "unable to parse extra headers",
+        )))
     }
 
     pub fn get_record_size(&self) -> u32 {
@@ -462,7 +507,7 @@ pub enum MSeedError {
     #[error("cannot parse extra headers")]
     JsonError(#[from] serde_json::Error),
     #[error("MSeed3 header must start with MS, (77, 83)  but was `{0}{1}`")]
-    BadRecordIndicator(u8,u8),
+    BadRecordIndicator(u8, u8),
     #[error("MSeed3 extra header must be object  but was `{0}`")]
     ExtraHeaderNotObject(serde_json::Value),
     #[error("MSeed3 extra header parse: `{0}`")]
@@ -549,7 +594,6 @@ mod tests {
         print!("{}", head);
     }
 
-
     #[test]
     fn read_header_round_trip() {
         let buf = &get_dummy_header()[0..FIXED_HEADER_SIZE];
@@ -567,9 +611,9 @@ mod tests {
 
     #[test]
     fn record_round_trip() {
-
         let buf = &get_dummy_header()[0..FIXED_HEADER_SIZE];
-        let identifier = String::from_utf8(get_dummy_header()[FIXED_HEADER_SIZE..64].to_owned()).unwrap();
+        let identifier =
+            String::from_utf8(get_dummy_header()[FIXED_HEADER_SIZE..64].to_owned()).unwrap();
 
         let mut head = MSeed3Header::from_bytes(buf).unwrap();
         head.identifier_length = identifier.len() as u8;
@@ -577,7 +621,7 @@ mod tests {
         head.extra_headers_length = dummy_eh.len() as u16;
         let extra_headers = ExtraHeaders::Raw(dummy_eh);
         let dummy_data = vec![0, -1, 2, -3, 4, -5];
-        head.data_length = (dummy_data.len() as u32 * 4 ) as u32;
+        head.data_length = (dummy_data.len() as u32 * 4) as u32;
         head.num_samples = dummy_data.len() as u32;
         head.encoding = DataEncodings::INT32.value();
         let encoded_data = EncodedTimeseries::Int32(dummy_data);
