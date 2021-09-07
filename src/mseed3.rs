@@ -38,7 +38,7 @@ pub fn read_mseed3(file_name: &str) -> Result<Vec<MSeed3Record>, MSeedError> {
     let mut buf_reader = BufReader::new(file);
     let mut records: Vec<MSeed3Record> = Vec::new();
     while !buf_reader.fill_buf()?.is_empty() {
-        let result = MSeed3Record::from_bytes(&mut buf_reader);
+        let result = MSeed3Record::from_reader(&mut buf_reader);
         match result {
             Ok(rec) => {
                 records.push(rec);
@@ -161,7 +161,7 @@ impl MSeed3Header {
         Ok(ms3_header)
     }
 
-    pub fn to_bytes<W>(&self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
+    pub fn write_to<W>(&self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
     where
         W: std::io::Write,
     {
@@ -225,7 +225,7 @@ pub enum EncodedTimeseries {
 }
 
 impl EncodedTimeseries {
-    pub fn save_to_bytes<W>(&self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
+    pub fn write_to<W>(&self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
     where
         W: std::io::Write,
     {
@@ -274,6 +274,20 @@ impl EncodedTimeseries {
                 buf.write_all(v)?;
                 Ok(())
             }
+        }
+    }
+
+    pub fn byte_len(&self) -> u32 {
+        match self {
+            EncodedTimeseries::Raw(v) => v.len() as u32,
+            EncodedTimeseries::Int16(v) => 2 * v.len() as u32,
+            EncodedTimeseries::Int32(v) => 4 * v.len() as u32,
+            EncodedTimeseries::Float32(v) => 4 * v.len() as u32,
+            EncodedTimeseries::Float64(v) => 8 * v.len() as u32,
+            EncodedTimeseries::Steim1(v) => v.len() as u32,
+            EncodedTimeseries::Steim2(v) => v.len() as u32,
+            EncodedTimeseries::Steim3(v) => v.len() as u32,
+            EncodedTimeseries::Opaque(v) => v.len() as u32,
         }
     }
 }
@@ -331,17 +345,7 @@ impl MSeed3Record {
             ExtraHeaders::Raw(v) => header.extra_headers_length = v.len() as u16,
             _ => header.extra_headers_length = 0,
         }
-        match &encoded_data {
-            EncodedTimeseries::Raw(v) => header.data_length = v.len() as u32,
-            EncodedTimeseries::Int16(v) => header.data_length = 2 * v.len() as u32,
-            EncodedTimeseries::Int32(v) => header.data_length = 4 * v.len() as u32,
-            EncodedTimeseries::Float32(v) => header.data_length = 4 * v.len() as u32,
-            EncodedTimeseries::Float64(v) => header.data_length = 8 * v.len() as u32,
-            EncodedTimeseries::Steim1(v) => header.data_length = v.len() as u32,
-            EncodedTimeseries::Steim2(v) => header.data_length = v.len() as u32,
-            EncodedTimeseries::Steim3(v) => header.data_length = v.len() as u32,
-            EncodedTimeseries::Opaque(v) => header.data_length = v.len() as u32,
-        }
+        header.data_length = encoded_data.byte_len();
 
         MSeed3Record {
             header,
@@ -351,7 +355,7 @@ impl MSeed3Record {
         }
     }
 
-    pub fn from_bytes<R: BufRead>(buf_reader: &mut R) -> Result<MSeed3Record, MSeedError> {
+    pub fn from_reader<R: BufRead>(buf_reader: &mut R) -> Result<MSeed3Record, MSeedError> {
         let mut buffer = [0; BUFFER_SIZE];
         let _ = buf_reader.by_ref().take(40).read(&mut buffer)?;
         let header = MSeed3Header::from_bytes(&buffer)?;
@@ -389,12 +393,13 @@ impl MSeed3Record {
         })
     }
 
-    pub fn save_to_bytes<W>(&mut self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
+    pub fn write_to<W>(&mut self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
     where
         W: std::io::Write,
     {
         let id_bytes = self.identifier.as_bytes();
         self.header.identifier_length = id_bytes.len() as u8;
+        self.header.data_length = self.encoded_data.byte_len();
 
         let mut eh_bytes = Vec::new();
         match &self.extra_headers {
@@ -406,12 +411,13 @@ impl MSeed3Record {
         } else {
             self.header.extra_headers_length = 0;
         }
-        self.header.to_bytes(buf)?;
+        self.header.write_to(buf)?;
         buf.write_all(id_bytes)?;
         if eh_bytes.len() > 2 {
+            // don't write bytes for empty object, e.g. `{}`
             buf.write_all(&eh_bytes)?;
         }
-        self.encoded_data.save_to_bytes(buf)?;
+        self.encoded_data.write_to(buf)?;
         buf.flush()?;
         Ok(())
     }
@@ -606,7 +612,7 @@ mod tests {
         let mut out = Vec::new();
         {
             let mut buf_writer = BufWriter::new(&mut out);
-            head.to_bytes(&mut buf_writer).unwrap();
+            head.write_to(&mut buf_writer).unwrap();
             buf_writer.flush().unwrap();
         }
         assert_eq!(out, buf);
@@ -634,7 +640,7 @@ mod tests {
         let mut out = Vec::new();
         {
             let mut buf_writer = BufWriter::new(&mut out);
-            rec.save_to_bytes(&mut buf_writer).unwrap();
+            rec.write_to(&mut buf_writer).unwrap();
             buf_writer.flush().unwrap();
         }
         assert_eq!(rec.get_record_size(), out.len() as u32);
