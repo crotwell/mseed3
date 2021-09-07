@@ -11,6 +11,9 @@ use std::io::prelude::*;
 use std::io::{ BufWriter};
 use std::string::FromUtf8Error;
 use thiserror::Error;
+use crc::{Crc, CRC_32_ISCSI};
+
+pub const CASTAGNOLI: Crc<u32> = Crc::<u32>::new(&CRC_32_ISCSI);
 
 /// read a single little endian 64 bit float (8 bytes) and reset input
 fn read_le_f64(input: &mut &[u8]) -> f64 {
@@ -36,6 +39,8 @@ fn read_le_u16(input: &mut &[u8]) -> u16 {
 /// Size in bytes of the fixed header. This does not include the identifier, extra headers, or data.
 pub const FIXED_HEADER_SIZE: usize = 40;
 
+pub const CRC_OFFSET: usize = 28;
+
 /// Known data compression codes.
 /// ```text
 /// 0   Text, UTF-8 allowed, use ASCII for maximum portability, no structure defined
@@ -48,6 +53,7 @@ pub const FIXED_HEADER_SIZE: usize = 40;
 /// 19  Steim-3 integer compression, big endian (not in common use in archives)
 /// 100 Opaque data - only for use in special scenarios, not intended for archiving
 /// ```
+#[derive(Debug, Clone)]
 pub enum DataEncoding {
     TEXT,
     INT16,
@@ -112,6 +118,7 @@ impl fmt::Display for DataEncoding {
 }
 
 /// The fixed section of the header. Does not contain the identifier, extra headers, or data.
+#[derive(Debug, Clone)]
 pub struct MSeed3Header {
     pub record_indicator: String,
     pub format_version: u8,
@@ -249,11 +256,13 @@ impl MSeed3Header {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum ExtraHeaders {
     Raw(String),
     Parsed(serde_json::Value),
 }
 
+#[derive(Debug, Clone)]
 pub enum EncodedTimeseries {
     Raw(Vec<u8>),
     Int16(Vec<i16>),
@@ -385,6 +394,7 @@ impl fmt::Display for EncodedTimeseries {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct MSeed3Record {
     pub header: MSeed3Header,
     pub identifier: String,
@@ -464,7 +474,35 @@ impl MSeed3Record {
         })
     }
 
-    pub fn write_to<W>(&mut self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
+    /// Writes the record, after calculating the CRC. The returned tuple contains the number
+    /// of bytes written and the CRC value.
+    /// This does recalculate the identifier length, extra headers length and data length headers.
+    /// The number of samples is sanity checked against the data, but trusts the header in cases
+    /// of compressed or opaque data.
+    pub fn write_to<W>(&mut self, buf: &mut BufWriter<W>) -> Result<(u32, u32), MSeedError>
+        where
+            W: std::io::Write,
+    {
+        self.header.crc = 0;
+        let mut out = Vec::new();
+        {
+            let mut inner_buf = BufWriter::new(&mut out);
+            self.write_to_wocrc(&mut inner_buf)?;
+            inner_buf.flush()?;
+        }
+        let crc = CASTAGNOLI.checksum(&out);
+        self.header.crc = crc;
+        buf.write_all(&out[0..CRC_OFFSET])?;
+        buf.write_u32::<LittleEndian>(crc)?;
+        buf.write_all(&out[(CRC_OFFSET+4)..])?;
+        Ok((out.len() as u32, crc))
+    }
+
+    /// Writes the record to the given buffer without checking, calculating or setting the header CRC field.
+    /// This does recalculate the identifier length, extra headers length and data length headers.
+    /// The number of samples is sanity checked against the data, but trusts the header in cases
+    /// of compressed or opaque data.
+    pub fn write_to_wocrc<W>(&mut self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
     where
         W: std::io::Write,
     {
@@ -697,6 +735,7 @@ mod tests {
             String::from_utf8(get_dummy_header()[FIXED_HEADER_SIZE..64].to_owned()).unwrap();
 
         let mut head = MSeed3Header::from_bytes(buf).unwrap();
+        let original_head = MSeed3Header::from_bytes(buf).unwrap();
         head.identifier_length = identifier.len() as u8;
         let dummy_eh = String::from("");
         head.extra_headers_length = dummy_eh.len() as u16;
@@ -708,11 +747,16 @@ mod tests {
         let encoded_data = EncodedTimeseries::Int32(dummy_data);
         let mut rec = MSeed3Record::new(head, identifier, extra_headers, encoded_data);
         let mut out = Vec::new();
+        let bytes_written: u32;
+        let crc_written: u32;
         {
             let mut buf_writer = BufWriter::new(&mut out);
-            rec.write_to(&mut buf_writer).unwrap();
+            let t = rec.write_to(&mut buf_writer).unwrap();
+            bytes_written = t.0;
+            crc_written = t.1;
             buf_writer.flush().unwrap();
         }
         assert_eq!(rec.get_record_size(), out.len() as u32);
+        assert_eq!(bytes_written, out.len() as u32);
     }
 }

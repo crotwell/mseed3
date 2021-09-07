@@ -1,6 +1,7 @@
 //! A library for reading and writing miniseed3.
 //!
 //! See the specification at <https://github.com/iris-edu/miniSEED3> or
+//! and <https://miniseed3.readthedocs.io/en/latest/> for now, or
 //! <https://docs.fdsn.org/projects/miniSEED3> once approved by FDSN
 mod mseed3;
 use std::io::{BufRead};
