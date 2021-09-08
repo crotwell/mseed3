@@ -15,7 +15,7 @@ pub const FIXED_HEADER_SIZE: usize = 40;
 /// Offset to the 4-byte CRC within the header.
 pub const CRC_OFFSET: usize = 28;
 
-/// The fixed section of the header. Does not contain the identifier, extra headers, or data.
+/// The fixed section of the header. Does not contain the identifier, extra headers, or timeseries data.
 #[derive(Debug, Clone)]
 pub struct MSeed3Header {
     pub record_indicator: [u8; 2],
@@ -77,7 +77,7 @@ impl MSeed3Header {
         let time = start.time();
         MSeed3Header {
             record_indicator: MSeed3Header::REC_IND,
-            format_version: 0 as u8,
+            format_version: 3 as u8,
             flags: 0 as u8,
             nanosecond: time.nanosecond(),
             year: date.year() as u16,
@@ -98,10 +98,11 @@ impl MSeed3Header {
 
     /// Reads a miniseed3 header from a BufReader.
     pub fn from_bytes(buffer: &[u8]) -> Result<MSeed3Header, MSeedError> {
-        print!("read_mseed3_buf...");
-        assert_eq!(&buffer[0..2], "MS".as_bytes());
         if buffer[0] != MSeed3Header::REC_IND[0] || buffer[1] != MSeed3Header::REC_IND[1] {
             return Err(MSeedError::BadRecordIndicator(buffer[0], buffer[1]));
+        }
+        if buffer[2] != 3 {
+            return Err(MSeedError::UnknownFormatVersion(buffer[2]));
         }
         let record_indicator = MSeed3Header::REC_IND;
         let format_version = buffer[2];
@@ -186,8 +187,8 @@ impl MSeed3Header {
 
     /// Format CRC as a hex string, like 0x106EAFA5
     pub fn crc_hex_string(&self) -> String {
-        //        format!("{:#010X}", self.crc)
-        format!("{:#X}", self.crc)
+        //        format!("{:#010X}", self.crc) // I like this style as shows it is a 32 bit number
+        format!("{:#0X}", self.crc) // but mseed3-utils from Chad does this
     }
 
     /// The size of the data record, including the identifier, extra headers and data. Note that
@@ -220,34 +221,28 @@ impl fmt::Display for MSeed3Header {
         //             }
 
         let encode_name = self.encoding.to_string();
-        let lines = [
-            format!(
-                "version ${}, ${} bytes (format: ${})\n",
+
+        write!(f,
+               "version {}, {} bytes (format: {})\n",
                 self.publication_version,
                 self.get_record_size(),
                 self.format_version
-            ),
-            format!("             start time: ${}\n", self.get_start_as_iso()),
-            format!("      number of samples: ${}\n", self.num_samples),
-            format!("       sample rate (Hz): ${}\n", self.sample_rate_period),
-            format!("                  flags: [${:#08b}] 8 bits\n", self.flags),
-            format!("                    CRC: ${}\n", self.crc_hex_string()),
-            format!(
-                "    extra header length: ${} bytes\n",
+            )?;
+        write!(f,"             start time: {}\n", self.get_start_as_iso())?;
+        write!(f,"      number of samples: {}\n", self.num_samples)?;
+        write!(f,"       sample rate (Hz): {}\n", self.sample_rate_period)?;
+        write!(f,"                  flags: [{:#010b}] 8 bits\n", self.flags)?;
+        write!(f,"                    CRC: {}\n", self.crc_hex_string())?;
+        write!(f,
+                "    extra header length: {} bytes\n",
                 self.extra_headers_length
-            ),
-            format!("    data payload length: ${} bytes\n", self.data_length),
-            format!(
-                "       payload encoding: ${encode_name} (val: ${encoding})",
+            )?;
+        write!(f,"    data payload length: {} bytes\n", self.data_length)?;
+        write!(f,
+                "       payload encoding: {encode_name} (val: {encoding})",
                 encode_name = encode_name,
                 encoding = self.encoding
-            ),
-        ];
-        let line = "";
-        for l in lines {
-            format!("{}{}", line, l);
-        }
-        write!(f, "{}", line)
+            )
     }
 }
 

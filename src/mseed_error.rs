@@ -15,6 +15,8 @@ pub enum MSeedError {
     JsonError(#[from] serde_json::Error),
     #[error("MSeed3 header must start with MS, (77, 83)  but was `{0}{1}`")]
     BadRecordIndicator(u8, u8),
+    #[error("MSeed3 header format_version must be 3 but was `{0}`")]
+    UnknownFormatVersion(u8),
     #[error("MSeed3 extra header must be object  but was `{0}`")]
     ExtraHeaderNotObject(serde_json::Value),
     #[error("MSeed3 extra header parse: `{0}`")]
