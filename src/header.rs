@@ -1,4 +1,3 @@
-
 use byteorder::{LittleEndian, WriteBytesExt};
 use chrono::prelude::*;
 use chrono::Utc;
@@ -15,7 +14,6 @@ pub const FIXED_HEADER_SIZE: usize = 40;
 
 /// Offset to the 4-byte CRC within the header.
 pub const CRC_OFFSET: usize = 28;
-
 
 /// The fixed section of the header. Does not contain the identifier, extra headers, or data.
 #[derive(Debug, Clone)]
@@ -61,7 +59,13 @@ impl MSeed3Header {
         self.data_length
     }
 
-    pub fn recalculated_lengths(&mut self, identifier_length: u8, extra_headers_length: u16, data_length: u32, num_samples: u32) {
+    pub fn recalculated_lengths(
+        &mut self,
+        identifier_length: u8,
+        extra_headers_length: u16,
+        data_length: u32,
+        num_samples: u32,
+    ) {
         self.identifier_length = identifier_length;
         self.extra_headers_length = extra_headers_length;
         self.data_length = data_length;
@@ -120,8 +124,8 @@ impl MSeed3Header {
 
     /// Writes a miniseed3 header to a BufWriter.
     pub fn write_to<W>(&self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
-        where
-            W: std::io::Write,
+    where
+        W: std::io::Write,
     {
         buf.write_all(&MSeed3Header::REC_IND)?;
         buf.write_all(&[self.format_version, self.flags])?;
@@ -173,7 +177,6 @@ impl MSeed3Header {
     }
 }
 
-
 impl fmt::Display for MSeed3Header {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // FDSN:CO_HODGE_00_L_H_Z, version 4, 477 bytes (format: 3)
@@ -224,7 +227,6 @@ impl fmt::Display for MSeed3Header {
     }
 }
 
-
 /// read a single little endian 64 bit float (8 bytes) and reset input
 fn read_le_f64(input: &mut &[u8]) -> f64 {
     let (int_bytes, rest) = input.split_at(std::mem::size_of::<f64>());
@@ -245,7 +247,6 @@ fn read_le_u16(input: &mut &[u8]) -> u16 {
     *input = rest;
     u16::from_le_bytes(int_bytes.try_into().unwrap())
 }
-
 
 #[cfg(test)]
 mod tests {

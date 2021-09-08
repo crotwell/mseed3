@@ -1,4 +1,3 @@
-
 use byteorder::{LittleEndian, WriteBytesExt};
 use std::fmt;
 use std::fmt::Formatter;
@@ -22,8 +21,8 @@ pub enum EncodedTimeseries {
 
 impl EncodedTimeseries {
     pub fn write_to<W>(&self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
-        where
-            W: std::io::Write,
+    where
+        W: std::io::Write,
     {
         match self {
             EncodedTimeseries::Raw(v) => {

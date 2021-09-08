@@ -24,7 +24,7 @@ fn test_ref_data() -> Result<(), MSeedError> {
     ];
     for base_name in base_name_list {
         let ms3_filename = format!("tests/reference-data/reference-{}.xseed", base_name);
-        println!("work on {}",ms3_filename);
+        println!("work on {}", ms3_filename);
         let file = File::open(&ms3_filename)?;
         let mut buf_reader = BufReader::new(file);
         //let records: Vec<mseed3::MSeed3Record> =

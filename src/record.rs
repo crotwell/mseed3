@@ -1,4 +1,3 @@
-
 use byteorder::{LittleEndian, WriteBytesExt};
 use crc::{Crc, CRC_32_ISCSI};
 use serde_json;
@@ -8,18 +7,16 @@ use std::io::BufWriter;
 
 use crate::data_encoding::DataEncoding;
 use crate::encoded_timeseries::EncodedTimeseries;
-use crate::header::{MSeed3Header, FIXED_HEADER_SIZE, CRC_OFFSET};
+use crate::header::{MSeed3Header, CRC_OFFSET, FIXED_HEADER_SIZE};
 use crate::mseed_error::MSeedError;
 
 pub const CASTAGNOLI: Crc<u32> = Crc::<u32>::new(&CRC_32_ISCSI);
-
 
 #[derive(Debug, Clone)]
 pub enum ExtraHeaders {
     Raw(String),
     Parsed(serde_json::Value),
 }
-
 
 #[derive(Debug, Clone)]
 pub struct MSeed3Record {
@@ -39,10 +36,15 @@ impl MSeed3Record {
         let mut header = header;
         // set identifier_length, extra_header_length and data_length based on inputs
         let extra_headers_length = match &extra_headers {
-            ExtraHeaders::Raw(v) =>  v.len() as u16,
-            _ =>  0,
+            ExtraHeaders::Raw(v) => v.len() as u16,
+            _ => 0,
         };
-        header.recalculated_lengths(identifier.len() as u8, extra_headers_length, encoded_data.byte_len(), encoded_data.reconcile_num_samples(header.num_samples));
+        header.recalculated_lengths(
+            identifier.len() as u8,
+            extra_headers_length,
+            encoded_data.byte_len(),
+            encoded_data.reconcile_num_samples(header.num_samples),
+        );
 
         MSeed3Record {
             header,
@@ -62,9 +64,9 @@ impl MSeed3Record {
         let mut header = MSeed3Header::from_bytes(&buffer)?;
         // set crc field to zero for crc calculation, header has already read value
         buffer[CRC_OFFSET] = 0;
-        buffer[CRC_OFFSET+1] = 0;
-        buffer[CRC_OFFSET+2] = 0;
-        buffer[CRC_OFFSET+3] = 0;
+        buffer[CRC_OFFSET + 1] = 0;
+        buffer[CRC_OFFSET + 2] = 0;
+        buffer[CRC_OFFSET + 3] = 0;
         let mut digest = CASTAGNOLI.digest();
         digest.update(&buffer);
 
@@ -80,7 +82,9 @@ impl MSeed3Record {
             Err(e) => return Err(MSeedError::FromUtf8Error(e)),
         };
         let extra_headers_str: String;
-        let mut json_reader = buf_reader.by_ref().take(header.raw_extra_headers_length() as u64);
+        let mut json_reader = buf_reader
+            .by_ref()
+            .take(header.raw_extra_headers_length() as u64);
         let mut buffer = Vec::new();
         let _ = json_reader.read_to_end(&mut buffer)?;
         digest.update(&buffer);
@@ -112,7 +116,9 @@ impl MSeed3Record {
             .read_to_end(&mut encoded_data)?;
         digest.update(&encoded_data);
         let crc_calc = digest.finalize();
-        if crc_calc != header.crc { return Err(MSeedError::CrcInvalid(crc_calc, header.crc));}
+        if crc_calc != header.crc {
+            return Err(MSeedError::CrcInvalid(crc_calc, header.crc));
+        }
         let encoded_data = EncodedTimeseries::Raw(encoded_data);
         header.num_samples = encoded_data.reconcile_num_samples(header.num_samples);
         Ok(MSeed3Record {
@@ -129,8 +135,8 @@ impl MSeed3Record {
     /// The number of samples is sanity checked against the data, but trusts the header in cases
     /// of compressed or opaque data.
     pub fn write_to<W>(&mut self, buf: &mut BufWriter<W>) -> Result<(u32, u32), MSeedError>
-        where
-            W: std::io::Write,
+    where
+        W: std::io::Write,
     {
         self.header.crc = 0;
         let mut out = Vec::new();
@@ -152,8 +158,8 @@ impl MSeed3Record {
     /// The number of samples is sanity checked against the data, but trusts the header in cases
     /// of compressed or opaque data.
     pub fn write_to_wocrc<W>(&mut self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
-        where
-            W: std::io::Write,
+    where
+        W: std::io::Write,
     {
         let id_bytes = self.identifier.as_bytes();
         let identifier_length = id_bytes.len() as u8;
@@ -173,7 +179,12 @@ impl MSeed3Record {
         } else {
             extra_headers_length = 0;
         }
-        self.header.recalculated_lengths(identifier_length, extra_headers_length, data_length, num_samples);
+        self.header.recalculated_lengths(
+            identifier_length,
+            extra_headers_length,
+            data_length,
+            num_samples,
+        );
         self.header.write_to(buf)?;
         buf.write_all(id_bytes)?;
         if eh_bytes.len() > 2 {
@@ -218,7 +229,6 @@ impl fmt::Display for MSeed3Record {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -237,7 +247,12 @@ mod tests {
         let dummy_data = vec![0, -1, 2, -3, 4, -5];
         let data_length = (dummy_data.len() as u32 * 4) as u32;
         let num_samples = dummy_data.len() as u32;
-        head.recalculated_lengths(identifier_length, extra_headers_length, data_length, num_samples);
+        head.recalculated_lengths(
+            identifier_length,
+            extra_headers_length,
+            data_length,
+            num_samples,
+        );
         head.encoding = DataEncoding::INT32;
         let encoded_data = EncodedTimeseries::Int32(dummy_data);
         let mut rec = MSeed3Record::new(head, identifier, extra_headers, encoded_data);
