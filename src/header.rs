@@ -18,7 +18,7 @@ pub const CRC_OFFSET: usize = 28;
 /// The fixed section of the header. Does not contain the identifier, extra headers, or data.
 #[derive(Debug, Clone)]
 pub struct MSeed3Header {
-    pub record_indicator: String,
+    pub record_indicator: [u8; 2],
     pub format_version: u8,
     pub flags: u8,
     pub nanosecond: u32,
@@ -72,6 +72,30 @@ impl MSeed3Header {
         self.num_samples = num_samples;
     }
 
+    pub fn new(start: DateTime<Utc>, encoding: DataEncoding, sample_rate_period: f64, num_samples: usize) -> MSeed3Header {
+        let date = start.date();
+        let time = start.time();
+        MSeed3Header {
+            record_indicator: MSeed3Header::REC_IND,
+            format_version: 0 as u8,
+            flags: 0 as u8,
+            nanosecond: time.nanosecond(),
+            year: date.year() as u16,
+            day_of_year: date.ordinal() as u16,
+            hour: time.hour() as u8,
+            minute: time.minute() as u8,
+            second: time.second() as u8,
+            encoding,
+            sample_rate_period,
+            num_samples: num_samples as u32,
+            crc: 0,
+            publication_version: 0,
+            identifier_length: 0,
+            extra_headers_length: 0,
+            data_length: 0,
+        }
+    }
+
     /// Reads a miniseed3 header from a BufReader.
     pub fn from_bytes(buffer: &[u8]) -> Result<MSeed3Header, MSeedError> {
         print!("read_mseed3_buf...");
@@ -79,7 +103,7 @@ impl MSeed3Header {
         if buffer[0] != MSeed3Header::REC_IND[0] || buffer[1] != MSeed3Header::REC_IND[1] {
             return Err(MSeedError::BadRecordIndicator(buffer[0], buffer[1]));
         }
-        let record_indicator = String::from("MS");
+        let record_indicator = MSeed3Header::REC_IND;
         let format_version = buffer[2];
         let flags = buffer[3];
         // skip M, S, format, flags
@@ -301,7 +325,7 @@ mod tests {
         let buf = get_dummy_header();
         print!("read_header_sin_int16...");
         let head = MSeed3Header::from_bytes(&buf).unwrap();
-        assert_eq!(head.record_indicator, "MS");
+        assert_eq!(head.record_indicator, MSeed3Header::REC_IND);
         assert_eq!(head.format_version, 3);
         assert_eq!(head.flags, 4);
         assert_eq!(head.nanosecond, 0);

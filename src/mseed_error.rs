@@ -1,4 +1,5 @@
 use serde_json;
+use chrono::ParseError;
 use std::string::FromUtf8Error;
 use thiserror::Error;
 
@@ -22,6 +23,8 @@ pub enum MSeedError {
     UnknownEncoding(u8),
     #[error("Expected {0} bytes for {1} samples as encoding type {2} but header has data_length={3} bytes.",)]
     DataLength(u32, u32, u8, u32),
+    #[error("Date parsing error: `{0}`")]
+    ParseError(#[from] ParseError),
     #[error("MSeed3 error: `{0}`")]
     Unknown(String),
 }

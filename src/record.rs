@@ -27,6 +27,31 @@ pub struct MSeed3Record {
 }
 
 impl MSeed3Record {
+    /// Create new miniseed3 Record. The header's fields are reconciled with the other inputs, so
+    /// for example in the case where the data is a primitive, uncompressed type like Int32,
+    /// num_samples will be calculated and set from the length of the array and so a 0 can be passed
+    /// as the last argument. However, in the case of compressed data, the number of samples cannot
+    /// be determined and so needs to be passed in.
+    ///
+    /// #Example
+    ///
+    /// ```
+    /// # use mseed3::MSeedError;
+    /// # fn main() -> Result<(), MSeedError> {
+    /// use chrono::{DateTime, Utc};
+    /// use mseed3::{DataEncoding, EncodedTimeseries, ExtraHeaders, MSeedError};
+    /// let start = "2014-11-28T12:00:09Z".parse::<DateTime<Utc>>()?;
+    /// let timeseries = vec![0, 1, -1, 5, 3, -5, 10, -1, 1, 0];
+    /// let num_samples = timeseries.len();
+    /// let encoded_data = EncodedTimeseries::Int32(timeseries);
+    /// let header = mseed3::MSeed3Header::new(start, DataEncoding::INT32, 10.0, num_samples);
+    /// let identifier = String::from("FDSN:CO_BIRD_00_H_H_Z");
+    /// let extra_headers = ExtraHeaders::Raw(String::from("{}"));
+    /// let record = mseed3::MSeed3Record::new(header, identifier, extra_headers, encoded_data);
+    /// # Ok(())
+    /// # }
+    ///
+    /// ```
     pub fn new(
         header: MSeed3Header,
         identifier: String,
