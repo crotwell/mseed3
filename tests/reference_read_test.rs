@@ -24,6 +24,7 @@ fn test_ref_data() -> Result<(), MSeedError> {
     ];
     for base_name in base_name_list {
         let ms3_filename = format!("tests/reference-data/reference-{}.xseed", base_name);
+        println!("work on {}",ms3_filename);
         let file = File::open(&ms3_filename)?;
         let mut buf_reader = BufReader::new(file);
         //let records: Vec<mseed3::MSeed3Record> =
@@ -31,10 +32,6 @@ fn test_ref_data() -> Result<(), MSeedError> {
         let json_filename = format!("tests/reference-data/reference-{}.json", base_name);
         let json: Value = read_ref_json(&json_filename)?;
         let mut first: MSeed3Record = mseed3::MSeed3Record::from_reader(&mut buf_reader)?;
-        // match records.first() {
-        //     Some(&msr) => first = msr,
-        //     None => return Err(MSeedError::Unknown(format!("no records in file"))),
-        // };
         assert_eq!(first.identifier, json["SID"]);
         assert_eq!(
             first.header.get_record_size(),

@@ -462,21 +462,31 @@ impl MSeed3Record {
             .take(FIXED_HEADER_SIZE as u64)
             .read(&mut buffer)?;
         let mut header = MSeed3Header::from_bytes(&buffer)?;
+        let crc_update: u32 = 0;
+        buffer[CRC_OFFSET] = 0;
+        buffer[CRC_OFFSET+1] = 0;
+        buffer[CRC_OFFSET+2] = 0;
+        buffer[CRC_OFFSET+3] = 0;
+        let mut digest = CASTAGNOLI.digest();
+        digest.update(&buffer);
+
         let mut buffer = Vec::new();
         let _ = buf_reader
             .by_ref()
             .take(header.identifier_length as u64)
             .read_to_end(&mut buffer)?;
+        digest.update(&buffer);
         let id_result = String::from_utf8(buffer);
         let identifier = match id_result {
             Ok(id) => id,
             Err(e) => return Err(MSeedError::FromUtf8Error(e)),
         };
         let extra_headers_str: String;
+        let mut json_reader = buf_reader.by_ref().take(header.extra_headers_length as u64);
+        let mut buffer = Vec::new();
+        let _ = json_reader.read_to_end(&mut buffer)?;
+        digest.update(&buffer);
         if header.extra_headers_length > 2 {
-            let mut json_reader = buf_reader.by_ref().take(header.extra_headers_length as u64);
-            let mut buffer = Vec::new();
-            let _ = json_reader.read_to_end(&mut buffer)?;
             extra_headers_str = String::from_utf8(buffer)?;
         } else {
             extra_headers_str = String::from("{}");
@@ -502,6 +512,9 @@ impl MSeed3Record {
             .by_ref()
             .take(header.data_length as u64)
             .read_to_end(&mut encoded_data)?;
+        digest.update(&encoded_data);
+        let crc_calc = digest.finalize();
+        if crc_calc != header.crc { return Err(MSeedError::CrcInvalid(crc_calc, header.crc));}
         let encoded_data = EncodedTimeseries::Raw(encoded_data);
         header.num_samples = encoded_data.reconcile_num_samples(header.num_samples);
         Ok(MSeed3Record {
@@ -659,6 +672,8 @@ impl fmt::Display for MSeed3Record {
 pub enum MSeedError {
     #[error("IO Error")]
     IOError(#[from] std::io::Error),
+    #[error("CRC invalid for record: calc:{0:#X} header:{1:#X}")]
+    CrcInvalid(u32, u32),
     #[error("Text not UTF8")]
     FromUtf8Error(#[from] FromUtf8Error),
     #[error("cannot parse extra headers")]
