@@ -9,10 +9,11 @@
 //! Create a record from data in memory:
 //!
 //! ```
-//! use mseed3::MSeedError;
-//! fn main() -> Result<(), MSeedError> {
-//! use chrono::{DateTime, Utc};
-//! use mseed3::{DataEncoding, EncodedTimeseries, ExtraHeaders, MSeedError};
+//! # use mseed3::MSeedError;
+//! # use std::io::Write;
+//! # fn main() -> Result<(), MSeedError> {
+//! # use chrono::{DateTime, Utc};
+//! # use mseed3::{DataEncoding, EncodedTimeseries, ExtraHeaders, MSeedError};
 //! let start = "2014-11-28T12:00:09Z".parse::<DateTime<Utc>>()?;
 //! let timeseries = vec![0, 1, -1, 5, 3, -5, 10, -1, 1, 0];
 //! let num_samples = timeseries.len();
@@ -30,6 +31,7 @@
 //!
 //! ```
 //! # use mseed3::MSeedError;
+//! # use std::io::Write;
 //! # fn main() -> Result<(), MSeedError> {
 //! # use chrono::{DateTime, Utc};
 //! # use mseed3::{DataEncoding, EncodedTimeseries, ExtraHeaders, MSeedError};
@@ -60,6 +62,7 @@
 //! write out to a file:
 //! ```
 //! # use mseed3::MSeedError;
+//! # use std::io::Write;
 //! # fn main() -> Result<(), MSeedError> {
 //! # use chrono::{DateTime, Utc};
 //! # use mseed3::{DataEncoding, EncodedTimeseries, ExtraHeaders, MSeedError};
@@ -83,6 +86,7 @@
 //! read it back in and print
 //! ```
 //! # use mseed3::MSeedError;
+//! # use std::io::Write;
 //! # fn main() -> Result<(), MSeedError> {
 //! # use chrono::{DateTime, Utc};
 //! # use mseed3::{DataEncoding, EncodedTimeseries, ExtraHeaders, MSeedError};

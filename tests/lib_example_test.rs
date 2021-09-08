@@ -4,7 +4,7 @@ use std::io::Write;
 #[test]
 fn lib_test() -> Result<(), MSeedError> {
     use chrono::{DateTime, Utc};
-    use mseed3::{DataEncoding, EncodedTimeseries, ExtraHeaders, MSeedError};
+    use mseed3::{DataEncoding, EncodedTimeseries, ExtraHeaders};
     let start = "2014-11-28T12:00:09Z".parse::<DateTime<Utc>>()?;
     let timeseries = vec![0, 1, -1, 5, 3, -5, 10, -1, 1, 0];
     let num_samples = timeseries.len();
