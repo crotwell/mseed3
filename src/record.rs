@@ -230,13 +230,14 @@ mod tests {
             String::from_utf8(get_dummy_header()[FIXED_HEADER_SIZE..64].to_owned()).unwrap();
 
         let mut head = MSeed3Header::from_bytes(buf).unwrap();
-        head.identifier_length = identifier.len() as u8;
+        let identifier_length = identifier.len() as u8;
         let dummy_eh = String::from("");
-        head.extra_headers_length = dummy_eh.len() as u16;
+        let extra_headers_length = dummy_eh.len() as u16;
         let extra_headers = ExtraHeaders::Raw(dummy_eh);
         let dummy_data = vec![0, -1, 2, -3, 4, -5];
-        head.data_length = (dummy_data.len() as u32 * 4) as u32;
-        head.num_samples = dummy_data.len() as u32;
+        let data_length = (dummy_data.len() as u32 * 4) as u32;
+        let num_samples = dummy_data.len() as u32;
+        head.recalculated_lengths(identifier_length, extra_headers_length, data_length, num_samples);
         head.encoding = DataEncoding::INT32;
         let encoded_data = EncodedTimeseries::Int32(dummy_data);
         let mut rec = MSeed3Record::new(head, identifier, extra_headers, encoded_data);
@@ -252,5 +253,35 @@ mod tests {
         }
         assert_eq!(rec.get_record_size(), out.len() as u32);
         assert_eq!(bytes_written, out.len() as u32);
+        assert_eq!(0x78281FB9, crc_written);
+        //println!("crc is {:#0X}", crc_written);
+    }
+
+    // copy from header.rs
+    fn get_dummy_header() -> [u8; 64] {
+        // 00000000  4d 53 03 04 00 00 00 00  dc 07 01 00 00 00 00 01  |MS..............|
+        // 00000010  00 00 00 00 00 00 f0 3f  f4 01 00 00 89 73 2b 64  |.......?.....s+d|
+        // 00000020  01 14 00 00 e8 03 00 00  58 46 44 53 4e 3a 58 58  |........XFDSN:XX|
+        // 00000030  5f 54 45 53 54 5f 5f 4c  5f 48 5f 5a 00 00 02 00  |_TEST__L_H_Z....|
+
+        // XFDSN:XX_TEST__L_H_Z, version 1, 1060 bytes (format: 3)
+        //  start time: 2012,001,00:00:00.000000
+        //      number of samples: 500
+        //    sample rate (Hz): 1
+        //               flags: [00100000] 8 bits
+        //                      [Bit 2] Clock locked
+        //                 CRC: 0x642B7389
+        // extra header length: 0 bytes
+        // data payload length: 1000 bytes
+        //    payload encoding: 16-bit integer (val: 1)
+
+        let buf: [u8; 64] = [
+            0x4d, 0x53, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00, 0xdc, 0x07, 0x01, 0x00, 0x00, 0x00,
+            0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f, 0xf4, 0x01, 0x00, 0x00,
+            0x89, 0x73, 0x2b, 0x64, 0x01, 0x14, 0x00, 0x00, 0xe8, 0x03, 0x00, 0x00, 0x58, 0x46,
+            0x44, 0x53, 0x4e, 0x3a, 0x58, 0x58, 0x5f, 0x54, 0x45, 0x53, 0x54, 0x5f, 0x5f, 0x4c,
+            0x5f, 0x48, 0x5f, 0x5a, 0x00, 0x00, 0x02, 0x00,
+        ];
+        buf
     }
 }
