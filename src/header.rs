@@ -1,7 +1,7 @@
 use byteorder::{LittleEndian, WriteBytesExt};
 use chrono::prelude::*;
 use chrono::Utc;
-use std::convert::{TryInto, TryFrom};
+use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::io::prelude::*;
 use std::io::BufWriter;
@@ -178,7 +178,10 @@ impl TryFrom<&[u8]> for MSeed3Header {
     /// Convert byte array to MSeed3Header, error if fewer than FIXED_HEADER_SIZE bytes
     fn try_from(buffer: &[u8]) -> Result<Self, Self::Error> {
         if buffer.len() < FIXED_HEADER_SIZE {
-            return Err(MSeedError::InsufficientBytes(buffer.len(), FIXED_HEADER_SIZE));
+            return Err(MSeedError::InsufficientBytes(
+                buffer.len(),
+                FIXED_HEADER_SIZE,
+            ));
         }
         let bufslice: &[u8; FIXED_HEADER_SIZE] = &buffer.try_into().unwrap();
         MSeed3Header::try_from(bufslice)

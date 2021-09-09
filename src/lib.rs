@@ -142,7 +142,7 @@ pub use self::encoded_timeseries::EncodedTimeseries;
 pub use self::fdsn_source_identifier::FdsnSourceIdentifier;
 pub use self::header::{MSeed3Header, FIXED_HEADER_SIZE};
 pub use self::mseed_error::MSeedError;
-pub use self::record::{ExtraHeaders, MSeed3Record, CASTAGNOLI, SourceIdentifier};
+pub use self::record::{ExtraHeaders, MSeed3Record, SourceIdentifier, CASTAGNOLI};
 
 /// Read miniseed3 records from a BufReader.
 ///

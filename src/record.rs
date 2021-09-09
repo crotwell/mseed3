@@ -24,15 +24,15 @@ pub enum SourceIdentifier {
 impl SourceIdentifier {
     pub fn calc_len(&self) -> u8 {
         match self {
-            SourceIdentifier::Raw(s)=> s.len() as u8,
-            SourceIdentifier::Fdsn(f) => f.calc_len()
+            SourceIdentifier::Raw(s) => s.len() as u8,
+            SourceIdentifier::Fdsn(f) => f.calc_len(),
         }
     }
 
     pub fn as_bytes(&self) -> Vec<u8> {
         match self {
-            SourceIdentifier::Raw(s)=> Vec::from(s.as_bytes()),
-            SourceIdentifier::Fdsn(f) => f.as_bytes()
+            SourceIdentifier::Raw(s) => Vec::from(s.as_bytes()),
+            SourceIdentifier::Fdsn(f) => f.as_bytes(),
         }
     }
 }
@@ -42,7 +42,7 @@ impl From<&str> for SourceIdentifier {
         let sid = FdsnSourceIdentifier::parse(&s);
         match sid {
             Ok(fdsn) => SourceIdentifier::Fdsn(fdsn),
-            Err(_) => SourceIdentifier::Raw(s.to_string())
+            Err(_) => SourceIdentifier::Raw(s.to_string()),
         }
     }
 }
@@ -328,8 +328,9 @@ mod tests {
 
         let mut head = MSeed3Header::try_from(buf).unwrap();
 
-        let identifier_bytes =
-            get_dummy_header()[FIXED_HEADER_SIZE..(FIXED_HEADER_SIZE+head.raw_identifier_length() as usize)].to_owned();
+        let identifier_bytes = get_dummy_header()
+            [FIXED_HEADER_SIZE..(FIXED_HEADER_SIZE + head.raw_identifier_length() as usize)]
+            .to_owned();
         let identifier_length = identifier_bytes.len() as u8;
         let identifier = SourceIdentifier::try_from(identifier_bytes)?;
         let dummy_eh = String::from("");
