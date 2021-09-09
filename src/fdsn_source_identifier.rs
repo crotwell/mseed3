@@ -18,6 +18,8 @@ lazy_static! {
     .unwrap();
 }
 
+pub const PREFIX: &str = "FDSN:";
+
 #[derive(Debug, Clone)]
 pub struct FdsnSourceIdentifier {
     pub network: String,
@@ -82,8 +84,14 @@ impl fmt::Display for FdsnSourceIdentifier {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "FDSN:{}_{}_{}_{}_{}_{}",
-            self.network, self.station, self.location, self.band, self.source, self.subsource
+            "{}{}_{}_{}_{}_{}_{}",
+            PREFIX,
+            self.network,
+            self.station,
+            self.location,
+            self.band,
+            self.source,
+            self.subsource
         )
     }
 }
