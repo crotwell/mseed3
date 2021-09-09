@@ -154,7 +154,7 @@ impl MSeed3Record {
             .by_ref()
             .take(FIXED_HEADER_SIZE as u64)
             .read(&mut buffer)?;
-        let mut header = MSeed3Header::from_bytes(&buffer)?;
+        let mut header = MSeed3Header::try_from(&buffer)?;
         // set crc field to zero for crc calculation, header has already read value
         buffer[CRC_OFFSET] = 0;
         buffer[CRC_OFFSET + 1] = 0;
@@ -326,7 +326,7 @@ mod tests {
     fn record_round_trip() -> Result<(), MSeedError> {
         let buf = &get_dummy_header()[0..FIXED_HEADER_SIZE];
 
-        let mut head = MSeed3Header::from_bytes(buf).unwrap();
+        let mut head = MSeed3Header::try_from(buf).unwrap();
 
         let identifier_bytes =
             get_dummy_header()[FIXED_HEADER_SIZE..(FIXED_HEADER_SIZE+head.raw_identifier_length() as usize)].to_owned();

@@ -1,7 +1,7 @@
 use byteorder::{LittleEndian, WriteBytesExt};
 use chrono::prelude::*;
 use chrono::Utc;
-use std::convert::TryInto;
+use std::convert::{TryInto, TryFrom};
 use std::fmt;
 use std::io::prelude::*;
 use std::io::BufWriter;
@@ -105,57 +105,6 @@ impl MSeed3Header {
         header
     }
 
-    /// Reads a miniseed3 header from a BufReader.
-    pub fn from_bytes(buffer: &[u8]) -> Result<MSeed3Header, MSeedError> {
-        if buffer[0] != MSeed3Header::REC_IND[0] || buffer[1] != MSeed3Header::REC_IND[1] {
-            return Err(MSeedError::BadRecordIndicator(buffer[0], buffer[1]));
-        }
-        if buffer[2] != 3 {
-            return Err(MSeedError::UnknownFormatVersion(buffer[2]));
-        }
-        let record_indicator = MSeed3Header::REC_IND;
-        let format_version = buffer[2];
-        let flags = buffer[3];
-        // skip M, S, format, flags
-        let (_, mut header_bytes) = buffer.split_at(4);
-        let nanosecond = read_le_u32(&mut header_bytes);
-        let year = read_le_u16(&mut header_bytes);
-        let day_of_year = read_le_u16(&mut header_bytes);
-        let hour = buffer[12];
-        let minute = buffer[13];
-        let second = buffer[14];
-        let encoding = DataEncoding::from_int(buffer[15]);
-        let _ = read_le_u32(&mut header_bytes); // skip hour-encoding
-        let sample_rate_period = read_le_f64(&mut header_bytes);
-        let num_samples = read_le_u32(&mut header_bytes);
-        let crc = read_le_u32(&mut header_bytes);
-        let publication_version = buffer[32];
-        let identifier_length = buffer[33];
-        let _ = read_le_u16(&mut header_bytes); // skip pub ver and id len
-        let extra_headers_length = read_le_u16(&mut header_bytes);
-        let data_length = read_le_u32(&mut header_bytes);
-        let ms3_header = MSeed3Header {
-            record_indicator,
-            format_version,
-            flags,
-            nanosecond,
-            year,
-            day_of_year,
-            hour,
-            minute,
-            second,
-            encoding,
-            sample_rate_period,
-            num_samples,
-            crc,
-            publication_version,
-            identifier_length,
-            extra_headers_length,
-            data_length,
-        };
-        Ok(ms3_header)
-    }
-
     /// Writes a miniseed3 header to a BufWriter.
     pub fn write_to<W>(&self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
     where
@@ -220,6 +169,73 @@ impl MSeed3Header {
             + self.identifier_length as u32
             + self.extra_headers_length as u32
             + self.data_length
+    }
+}
+
+impl TryFrom<&[u8]> for MSeed3Header {
+    type Error = MSeedError;
+
+    fn try_from(buffer: &[u8]) -> Result<Self, Self::Error> {
+        if buffer.len() < FIXED_HEADER_SIZE {
+            return Err(MSeedError::InsufficientBytes(buffer.len(), FIXED_HEADER_SIZE));
+        }
+        let bufslice: &[u8; FIXED_HEADER_SIZE] = &buffer.try_into().unwrap();
+        MSeed3Header::try_from(bufslice)
+    }
+}
+
+impl TryFrom<&[u8; FIXED_HEADER_SIZE]> for MSeed3Header {
+    type Error = MSeedError;
+
+    fn try_from(buffer: &[u8; FIXED_HEADER_SIZE]) -> Result<Self, Self::Error> {
+
+        if buffer[0] != MSeed3Header::REC_IND[0] || buffer[1] != MSeed3Header::REC_IND[1] {
+            return Err(MSeedError::BadRecordIndicator(buffer[0], buffer[1]));
+        }
+        if buffer[2] != 3 {
+            return Err(MSeedError::UnknownFormatVersion(buffer[2]));
+        }
+        let record_indicator = MSeed3Header::REC_IND;
+        let format_version = buffer[2];
+        let flags = buffer[3];
+        // skip M, S, format, flags
+        let (_, mut header_bytes) = buffer.split_at(4);
+        let nanosecond = read_le_u32(&mut header_bytes);
+        let year = read_le_u16(&mut header_bytes);
+        let day_of_year = read_le_u16(&mut header_bytes);
+        let hour = buffer[12];
+        let minute = buffer[13];
+        let second = buffer[14];
+        let encoding = DataEncoding::from_int(buffer[15]);
+        let _ = read_le_u32(&mut header_bytes); // skip hour-encoding
+        let sample_rate_period = read_le_f64(&mut header_bytes);
+        let num_samples = read_le_u32(&mut header_bytes);
+        let crc = read_le_u32(&mut header_bytes);
+        let publication_version = buffer[32];
+        let identifier_length = buffer[33];
+        let _ = read_le_u16(&mut header_bytes); // skip pub ver and id len
+        let extra_headers_length = read_le_u16(&mut header_bytes);
+        let data_length = read_le_u32(&mut header_bytes);
+        let ms3_header = MSeed3Header {
+            record_indicator,
+            format_version,
+            flags,
+            nanosecond,
+            year,
+            day_of_year,
+            hour,
+            minute,
+            second,
+            encoding,
+            sample_rate_period,
+            num_samples,
+            crc,
+            publication_version,
+            identifier_length,
+            extra_headers_length,
+            data_length,
+        };
+        Ok(ms3_header)
     }
 }
 
@@ -345,9 +361,10 @@ mod tests {
 
     #[test]
     fn read_header_sin_int16() {
-        let buf = get_dummy_header();
+        let dummy = get_dummy_header();
+        let buf: &[u8] = &dummy[0..FIXED_HEADER_SIZE];
         print!("read_header_sin_int16...");
-        let head = MSeed3Header::from_bytes(&buf).unwrap();
+        let head = MSeed3Header::try_from(&dummy[0..40]).unwrap();
         assert_eq!(head.record_indicator, MSeed3Header::REC_IND);
         assert_eq!(head.format_version, 3);
         assert_eq!(head.flags, 4);
@@ -374,7 +391,7 @@ mod tests {
     #[test]
     fn read_header_round_trip() {
         let buf = &get_dummy_header()[0..FIXED_HEADER_SIZE];
-        let head = MSeed3Header::from_bytes(buf).unwrap();
+        let head = MSeed3Header::try_from(buf).unwrap();
         let mut out = Vec::new();
         {
             let mut buf_writer = BufWriter::new(&mut out);
@@ -389,7 +406,7 @@ mod tests {
     #[test]
     fn set_start_leap_second() {
         let buf = get_dummy_header();
-        let mut header = MSeed3Header::from_bytes(&buf).unwrap();
+        let mut header = MSeed3Header::try_from(&buf[0..FIXED_HEADER_SIZE]).unwrap();
         let start = Utc
             .ymd(2016, 12, 31)
             .and_hms_nano(23, 59, 59, 1_900_000_000);

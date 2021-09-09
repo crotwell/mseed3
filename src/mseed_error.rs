@@ -7,6 +7,8 @@ use thiserror::Error;
 pub enum MSeedError {
     #[error("IO Error")]
     IOError(#[from] std::io::Error),
+    #[error("Insufficient bytes, {0} < fixed header size {1}")]
+    InsufficientBytes(usize, usize),
     #[error("CRC invalid for record: calc:{0:#X} header:{1:#X}")]
     CrcInvalid(u32, u32),
     #[error("Text not UTF8")]
