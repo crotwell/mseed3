@@ -12,6 +12,7 @@ use crate::encoded_timeseries::EncodedTimeseries;
 use crate::fdsn_source_identifier::FdsnSourceIdentifier;
 use crate::header::{MSeed3Header, CRC_OFFSET, FIXED_HEADER_SIZE};
 use crate::mseed_error::MSeedError;
+use std::convert::TryFrom;
 
 pub const CASTAGNOLI: Crc<u32> = Crc::<u32>::new(&CRC_32_ISCSI);
 
@@ -21,19 +22,6 @@ pub enum SourceIdentifier {
     Fdsn(FdsnSourceIdentifier),
 }
 impl SourceIdentifier {
-    pub fn from_utf8(vec: Vec<u8>) -> Result<SourceIdentifier, MSeedError> {
-        let text = String::from_utf8(vec)?;
-        SourceIdentifier::from_string(&text)
-    }
-    pub fn from_string(text: &str) -> Result<SourceIdentifier, MSeedError> {
-        let sid;
-        if text.starts_with(crate::fdsn_source_identifier::PREFIX) {
-            sid = SourceIdentifier::Fdsn(FdsnSourceIdentifier::parse(&text)?);
-        } else {
-            sid = SourceIdentifier::Raw(text.to_string());
-        }
-        Ok(sid)
-    }
     pub fn calc_len(&self) -> u8 {
         match self {
             SourceIdentifier::Raw(s)=> s.len() as u8,
@@ -48,6 +36,25 @@ impl SourceIdentifier {
         }
     }
 }
+
+impl From<&str> for SourceIdentifier {
+    fn from(s: &str) -> Self {
+        let sid = FdsnSourceIdentifier::parse(&s);
+        match sid {
+            Ok(fdsn) => SourceIdentifier::Fdsn(fdsn),
+            Err(_) => SourceIdentifier::Raw(s.to_string())
+        }
+    }
+}
+impl TryFrom<Vec<u8>> for SourceIdentifier {
+    type Error = MSeedError;
+
+    fn try_from(v: Vec<u8>) -> Result<Self, Self::Error> {
+        let s = String::from_utf8(v)?;
+        Ok(SourceIdentifier::from(&*s))
+    }
+}
+
 impl fmt::Display for SourceIdentifier {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -91,7 +98,7 @@ impl MSeed3Record {
     /// let num_samples = timeseries.len();
     /// let encoded_data = EncodedTimeseries::Int32(timeseries);
     /// let header = mseed3::MSeed3Header::new(start, DataEncoding::INT32, 10.0, num_samples);
-    /// let identifier = SourceIdentifier::from_string("FDSN:CO_BIRD_00_H_H_Z")?;
+    /// let identifier = SourceIdentifier::from("FDSN:CO_BIRD_00_H_H_Z");
     /// let extra_headers = ExtraHeaders::Raw(String::from("{}"));
     /// let record = mseed3::MSeed3Record::new(header, identifier, extra_headers, encoded_data);
     /// # Ok(())
@@ -162,7 +169,7 @@ impl MSeed3Record {
             .take(header.raw_identifier_length() as u64)
             .read_to_end(&mut buffer)?;
         digest.update(&buffer);
-        let identifier = SourceIdentifier::from_utf8(buffer)?;
+        let identifier = SourceIdentifier::try_from(buffer)?;
         let extra_headers_str: String;
         let mut json_reader = buf_reader
             .by_ref()
@@ -324,7 +331,7 @@ mod tests {
         let identifier_bytes =
             get_dummy_header()[FIXED_HEADER_SIZE..(FIXED_HEADER_SIZE+head.raw_identifier_length() as usize)].to_owned();
         let identifier_length = identifier_bytes.len() as u8;
-        let identifier = SourceIdentifier::from_utf8(identifier_bytes)?;
+        let identifier = SourceIdentifier::try_from(identifier_bytes)?;
         let dummy_eh = String::from("");
         let extra_headers_length = dummy_eh.len() as u16;
         let extra_headers = ExtraHeaders::Raw(dummy_eh);

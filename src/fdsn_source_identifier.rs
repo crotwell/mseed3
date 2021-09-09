@@ -20,6 +20,8 @@ lazy_static! {
 
 pub const PREFIX: &str = "FDSN:";
 
+/// An FDSN Source Identifier string parsed into its component parts
+/// See the specification at <http://docs.fdsn.org/projects/source-identifiers/en/v1.0/index.html>
 #[derive(Debug, Clone)]
 pub struct FdsnSourceIdentifier {
     pub network: String,
@@ -31,6 +33,8 @@ pub struct FdsnSourceIdentifier {
 }
 
 impl FdsnSourceIdentifier {
+    /// Calculates the length when turned back into a string. This includes
+    /// 5 bytes for the FDSN: prefix and the 5 underscore separators
     pub fn calc_len(&self) -> u8 {
         (10 + self.network.len()
             + self.station.len()
@@ -43,6 +47,8 @@ impl FdsnSourceIdentifier {
     pub fn as_bytes(&self) -> Vec<u8> {
         Vec::from(self.to_string().as_bytes())
     }
+
+    /// Parses identifier from Vec of bytes
     pub fn from_utf8(vec: Vec<u8>) -> Result<FdsnSourceIdentifier, MSeedError> {
         let text = String::from_utf8(vec)?;
         FdsnSourceIdentifier::parse(&text)
