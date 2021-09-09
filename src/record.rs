@@ -9,9 +9,9 @@ use std::io::BufWriter;
 
 use crate::data_encoding::DataEncoding;
 use crate::encoded_timeseries::EncodedTimeseries;
+use crate::fdsn_source_identifier::FdsnSourceIdentifier;
 use crate::header::{MSeed3Header, CRC_OFFSET, FIXED_HEADER_SIZE};
 use crate::mseed_error::MSeedError;
-use crate::fdsn_source_identifier::FdsnSourceIdentifier;
 
 pub const CASTAGNOLI: Crc<u32> = Crc::<u32>::new(&CRC_32_ISCSI);
 
@@ -83,9 +83,19 @@ impl MSeed3Record {
         }
     }
 
-    pub fn from_floats(start: DateTime<Utc>, sample_rate_period: f64, data: Vec<f32>) -> MSeed3Record {
-        let header = MSeed3Header::new(start, DataEncoding::FLOAT32, sample_rate_period, data.len());
-        MSeed3Record::new(header, FdsnSourceIdentifier::create_fake_channel(), ExtraHeaders::Raw(String::new()), EncodedTimeseries::Float32(data))
+    pub fn from_floats(
+        start: DateTime<Utc>,
+        sample_rate_period: f64,
+        data: Vec<f32>,
+    ) -> MSeed3Record {
+        let header =
+            MSeed3Header::new(start, DataEncoding::FLOAT32, sample_rate_period, data.len());
+        MSeed3Record::new(
+            header,
+            FdsnSourceIdentifier::create_fake_channel(),
+            ExtraHeaders::Raw(String::new()),
+            EncodedTimeseries::Float32(data),
+        )
     }
 
     /// Read a single record record from the BufRead
@@ -264,7 +274,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn record_round_trip()  -> Result<(), MSeedError> {
+    fn record_round_trip() -> Result<(), MSeedError> {
         let buf = &get_dummy_header()[0..FIXED_HEADER_SIZE];
         let identifier =
             String::from_utf8(get_dummy_header()[FIXED_HEADER_SIZE..64].to_owned()).unwrap();

@@ -76,7 +76,12 @@ impl MSeed3Header {
 
     /// Create a minimal new header with time, data encoding, sample rate and number of samples.
     /// All other fields are set to sensible defaults or zero.
-    pub fn new(start: DateTime<Utc>, encoding: DataEncoding, sample_rate_period: f64, num_samples: usize) -> MSeed3Header {
+    pub fn new(
+        start: DateTime<Utc>,
+        encoding: DataEncoding,
+        sample_rate_period: f64,
+        num_samples: usize,
+    ) -> MSeed3Header {
         let mut header = MSeed3Header {
             record_indicator: MSeed3Header::REC_IND,
             format_version: 3 as u8,
@@ -99,7 +104,6 @@ impl MSeed3Header {
         header.set_start_from_utc(start);
         header
     }
-
 
     /// Reads a miniseed3 header from a BufReader.
     pub fn from_bytes(buffer: &[u8]) -> Result<MSeed3Header, MSeedError> {
@@ -187,12 +191,12 @@ impl MSeed3Header {
         let date = start.date();
         let time = start.time();
 
-        self.nanosecond = time.nanosecond()% 1_000_000_000;
+        self.nanosecond = time.nanosecond() % 1_000_000_000;
         self.year = date.year() as u16;
         self.day_of_year = date.ordinal() as u16;
         self.hour = time.hour() as u8;
         self.minute = time.minute() as u8;
-        self.second = (time.second() + time.nanosecond()/1_000_000_000) as u8;
+        self.second = (time.second() + time.nanosecond() / 1_000_000_000) as u8;
     }
 
     /// Start time as ISO8601 string
@@ -239,27 +243,34 @@ impl fmt::Display for MSeed3Header {
 
         let encode_name = self.encoding.to_string();
 
-        write!(f,
-               "version {}, {} bytes (format: {})\n",
-                self.publication_version,
-                self.get_record_size(),
-                self.format_version
-            )?;
-        write!(f,"             start time: {}\n", self.get_start_as_iso())?;
-        write!(f,"      number of samples: {}\n", self.num_samples)?;
-        write!(f,"       sample rate (Hz): {}\n", self.sample_rate_period)?;
-        write!(f,"                  flags: [{:#010b}] 8 bits\n", self.flags)?;
-        write!(f,"                    CRC: {}\n", self.crc_hex_string())?;
-        write!(f,
-                "    extra header length: {} bytes\n",
-                self.extra_headers_length
-            )?;
-        write!(f,"    data payload length: {} bytes\n", self.data_length)?;
-        write!(f,
-                "       payload encoding: {encode_name} (val: {encoding})",
-                encode_name = encode_name,
-                encoding = self.encoding
-            )
+        write!(
+            f,
+            "version {}, {} bytes (format: {})\n",
+            self.publication_version,
+            self.get_record_size(),
+            self.format_version
+        )?;
+        write!(f, "             start time: {}\n", self.get_start_as_iso())?;
+        write!(f, "      number of samples: {}\n", self.num_samples)?;
+        write!(f, "       sample rate (Hz): {}\n", self.sample_rate_period)?;
+        write!(
+            f,
+            "                  flags: [{:#010b}] 8 bits\n",
+            self.flags
+        )?;
+        write!(f, "                    CRC: {}\n", self.crc_hex_string())?;
+        write!(
+            f,
+            "    extra header length: {} bytes\n",
+            self.extra_headers_length
+        )?;
+        write!(f, "    data payload length: {} bytes\n", self.data_length)?;
+        write!(
+            f,
+            "       payload encoding: {encode_name} (val: {encoding})",
+            encode_name = encode_name,
+            encoding = self.encoding
+        )
     }
 }
 
@@ -379,13 +390,9 @@ mod tests {
     fn set_start_leap_second() {
         let buf = get_dummy_header();
         let mut header = MSeed3Header::from_bytes(&buf).unwrap();
-        let start = Utc.ymd(2016, 12, 31)
-            .and_hms_nano(
-                23,
-                59,
-                59,
-                1_900_000_000,
-            );
+        let start = Utc
+            .ymd(2016, 12, 31)
+            .and_hms_nano(23, 59, 59, 1_900_000_000);
         header.set_start_from_utc(start);
         assert_eq!(header.nanosecond, 900_000_000);
         assert_eq!(header.second, 60);

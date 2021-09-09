@@ -1,5 +1,5 @@
-use serde_json;
 use chrono::ParseError;
+use serde_json;
 use std::string::FromUtf8Error;
 use thiserror::Error;
 
@@ -18,7 +18,7 @@ pub enum MSeedError {
     #[error("MSeed3 header format_version must be 3 but was `{0}`")]
     UnknownFormatVersion(u8),
     #[error("cannot parse {1} in FDSN source identifier `{0}`")]
-    IdentifierParse(String,String),
+    IdentifierParse(String, String),
     #[error("Unknown data encoding: `{0}`")]
     ExtraHeaderNotObject(serde_json::Value),
     #[error("MSeed3 extra header parse: `{0}`")]

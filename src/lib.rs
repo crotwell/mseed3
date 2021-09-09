@@ -130,10 +130,10 @@
 
 mod data_encoding;
 mod encoded_timeseries;
+mod fdsn_source_identifier;
 mod header;
 mod mseed_error;
 mod record;
-mod fdsn_source_identifier;
 
 use std::io::BufRead;
 
