@@ -115,7 +115,6 @@ fn capture_named(captures: &Captures, name: &str, id: &str) -> Result<String, MS
 #[cfg(test)]
 mod tests {
     use super::*;
-    use regex::Error;
 
     #[test]
     fn init_regex() -> Result<(), MSeedError> {

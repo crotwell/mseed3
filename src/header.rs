@@ -175,6 +175,7 @@ impl MSeed3Header {
 impl TryFrom<&[u8]> for MSeed3Header {
     type Error = MSeedError;
 
+    /// Convert byte array to MSeed3Header, error if fewer than FIXED_HEADER_SIZE bytes
     fn try_from(buffer: &[u8]) -> Result<Self, Self::Error> {
         if buffer.len() < FIXED_HEADER_SIZE {
             return Err(MSeedError::InsufficientBytes(buffer.len(), FIXED_HEADER_SIZE));
@@ -187,8 +188,8 @@ impl TryFrom<&[u8]> for MSeed3Header {
 impl TryFrom<&[u8; FIXED_HEADER_SIZE]> for MSeed3Header {
     type Error = MSeedError;
 
+    /// Convert byte array to MSeed3Header, error if first bytes are not 'MS3'
     fn try_from(buffer: &[u8; FIXED_HEADER_SIZE]) -> Result<Self, Self::Error> {
-
         if buffer[0] != MSeed3Header::REC_IND[0] || buffer[1] != MSeed3Header::REC_IND[1] {
             return Err(MSeedError::BadRecordIndicator(buffer[0], buffer[1]));
         }
@@ -362,7 +363,6 @@ mod tests {
     #[test]
     fn read_header_sin_int16() {
         let dummy = get_dummy_header();
-        let buf: &[u8] = &dummy[0..FIXED_HEADER_SIZE];
         print!("read_header_sin_int16...");
         let head = MSeed3Header::try_from(&dummy[0..40]).unwrap();
         assert_eq!(head.record_indicator, MSeed3Header::REC_IND);

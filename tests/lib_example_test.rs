@@ -1,4 +1,3 @@
-use mseed3::FdsnSourceIdentifier;
 use mseed3::MSeedError;
 use std::io::Write;
 
