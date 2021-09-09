@@ -6,13 +6,13 @@ use std::fmt;
 lazy_static! {
     static ref PARSE_FDSN_REGEX: Regex = Regex::new(
         r"(?x)^
-FDSN:                  # prefix
-(?P<net>[A-Z0-9]{1,8})_   # network, 1-8 chars
-(?P<sta>[-A-Z0-9]{1,8})_  # station, 1-8 chars with dash
-(?P<loc>[-A-Z0-9]{0,8})_  # location, 0-8 chars with dash
-(?P<band>[A-Z0-9]*)_       # band, optional, usually single char
-(?P<source>[A-Z0-9]+)_       # source, one or more, usually single char
-(?P<subsource>[A-Z0-9]*)$        # subsource, optional, usually single char
+            FDSN:                      # prefix
+            (?P<net>[A-Z0-9]{1,8})_    # network, 1-8 chars
+            (?P<sta>[-A-Z0-9]{1,8})_   # station, 1-8 chars with dash
+            (?P<loc>[-A-Z0-9]{0,8})_   # location, 0-8 chars with dash
+            (?P<band>[A-Z0-9]*)_       # band, optional, usually single char
+            (?P<source>[A-Z0-9]+)_     # source, one or more, usually single char
+            (?P<subsource>[A-Z0-9]*)$  # subsource, optional, usually single char
 "
     )
     .unwrap();
