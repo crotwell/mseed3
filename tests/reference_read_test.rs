@@ -32,7 +32,7 @@ fn test_ref_data() -> Result<(), MSeedError> {
         let json_filename = format!("tests/reference-data/reference-{}.json", base_name);
         let json: Value = read_ref_json(&json_filename)?;
         let mut first: MSeed3Record = mseed3::MSeed3Record::from_reader(&mut buf_reader)?;
-        assert_eq!(first.identifier, json["SID"]);
+        assert_eq!(first.identifier.to_string(), json["SID"]);
         assert_eq!(
             first.header.get_record_size(),
             json["RecordLength"].as_u64().unwrap() as u32

@@ -17,7 +17,9 @@ pub enum MSeedError {
     BadRecordIndicator(u8, u8),
     #[error("MSeed3 header format_version must be 3 but was `{0}`")]
     UnknownFormatVersion(u8),
-    #[error("MSeed3 extra header must be object  but was `{0}`")]
+    #[error("cannot parse {1} in FDSN source identifier `{0}`")]
+    IdentifierParse(String,String),
+    #[error("Unknown data encoding: `{0}`")]
     ExtraHeaderNotObject(serde_json::Value),
     #[error("MSeed3 extra header parse: `{0}`")]
     ExtraHeaderParse(String),

@@ -133,11 +133,13 @@ mod encoded_timeseries;
 mod header;
 mod mseed_error;
 mod record;
+mod fdsn_source_identifier;
 
 use std::io::BufRead;
 
 pub use self::data_encoding::DataEncoding;
 pub use self::encoded_timeseries::EncodedTimeseries;
+pub use self::fdsn_source_identifier::FdsnSourceIdentifier;
 pub use self::header::{MSeed3Header, FIXED_HEADER_SIZE};
 pub use self::mseed_error::MSeedError;
 pub use self::record::{ExtraHeaders, MSeed3Record, CASTAGNOLI};

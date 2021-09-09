@@ -1,4 +1,6 @@
 use byteorder::{LittleEndian, WriteBytesExt};
+use chrono::prelude::*;
+use chrono::Utc;
 use crc::{Crc, CRC_32_ISCSI};
 use serde_json;
 use std::fmt;
@@ -9,6 +11,7 @@ use crate::data_encoding::DataEncoding;
 use crate::encoded_timeseries::EncodedTimeseries;
 use crate::header::{MSeed3Header, CRC_OFFSET, FIXED_HEADER_SIZE};
 use crate::mseed_error::MSeedError;
+use crate::fdsn_source_identifier::FdsnSourceIdentifier;
 
 pub const CASTAGNOLI: Crc<u32> = Crc::<u32>::new(&CRC_32_ISCSI);
 
@@ -21,7 +24,7 @@ pub enum ExtraHeaders {
 #[derive(Debug, Clone)]
 pub struct MSeed3Record {
     pub header: MSeed3Header,
-    pub identifier: String,
+    pub identifier: FdsnSourceIdentifier,
     pub extra_headers: ExtraHeaders,
     pub encoded_data: EncodedTimeseries,
 }
@@ -37,6 +40,7 @@ impl MSeed3Record {
     ///
     /// ```
     /// # use mseed3::MSeedError;
+    /// # use mseed3::FdsnSourceIdentifier;
     /// # fn main() -> Result<(), MSeedError> {
     /// use chrono::{DateTime, Utc};
     /// use mseed3::{DataEncoding, EncodedTimeseries, ExtraHeaders, MSeedError};
@@ -45,7 +49,7 @@ impl MSeed3Record {
     /// let num_samples = timeseries.len();
     /// let encoded_data = EncodedTimeseries::Int32(timeseries);
     /// let header = mseed3::MSeed3Header::new(start, DataEncoding::INT32, 10.0, num_samples);
-    /// let identifier = String::from("FDSN:CO_BIRD_00_H_H_Z");
+    /// let identifier = FdsnSourceIdentifier::parse("FDSN:CO_BIRD_00_H_H_Z");
     /// let extra_headers = ExtraHeaders::Raw(String::from("{}"));
     /// let record = mseed3::MSeed3Record::new(header, identifier, extra_headers, encoded_data);
     /// # Ok(())
@@ -54,7 +58,7 @@ impl MSeed3Record {
     /// ```
     pub fn new(
         header: MSeed3Header,
-        identifier: String,
+        identifier: FdsnSourceIdentifier,
         extra_headers: ExtraHeaders,
         encoded_data: EncodedTimeseries,
     ) -> MSeed3Record {
@@ -65,7 +69,7 @@ impl MSeed3Record {
             _ => 0,
         };
         header.recalculated_lengths(
-            identifier.len() as u8,
+            identifier.calc_len(),
             extra_headers_length,
             encoded_data.byte_len(),
             encoded_data.reconcile_num_samples(header.num_samples),
@@ -77,6 +81,11 @@ impl MSeed3Record {
             extra_headers,
             encoded_data,
         }
+    }
+
+    pub fn from_floats(start: DateTime<Utc>, sample_rate_period: f64, data: Vec<f32>) -> MSeed3Record {
+        let header = MSeed3Header::new(start, DataEncoding::FLOAT32, sample_rate_period, data.len());
+        MSeed3Record::new(header, FdsnSourceIdentifier::create_fake_channel(), ExtraHeaders::Raw(String::new()), EncodedTimeseries::Float32(data))
     }
 
     /// Read a single record record from the BufRead
@@ -101,11 +110,7 @@ impl MSeed3Record {
             .take(header.raw_identifier_length() as u64)
             .read_to_end(&mut buffer)?;
         digest.update(&buffer);
-        let id_result = String::from_utf8(buffer);
-        let identifier = match id_result {
-            Ok(id) => id,
-            Err(e) => return Err(MSeedError::FromUtf8Error(e)),
-        };
+        let identifier = FdsnSourceIdentifier::from_utf8(buffer)?;
         let extra_headers_str: String;
         let mut json_reader = buf_reader
             .by_ref()
@@ -211,7 +216,7 @@ impl MSeed3Record {
             num_samples,
         );
         self.header.write_to(buf)?;
-        buf.write_all(id_bytes)?;
+        buf.write_all(&id_bytes)?;
         if eh_bytes.len() > 2 {
             // don't write bytes for empty object, e.g. `{}`
             buf.write_all(&eh_bytes)?;
@@ -259,13 +264,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn record_round_trip() {
+    fn record_round_trip()  -> Result<(), MSeedError> {
         let buf = &get_dummy_header()[0..FIXED_HEADER_SIZE];
         let identifier =
             String::from_utf8(get_dummy_header()[FIXED_HEADER_SIZE..64].to_owned()).unwrap();
 
         let mut head = MSeed3Header::from_bytes(buf).unwrap();
         let identifier_length = identifier.len() as u8;
+        let identifier = FdsnSourceIdentifier::parse(&identifier)?;
         let dummy_eh = String::from("");
         let extra_headers_length = dummy_eh.len() as u16;
         let extra_headers = ExtraHeaders::Raw(dummy_eh);
@@ -295,6 +301,7 @@ mod tests {
         assert_eq!(bytes_written, out.len() as u32);
         assert_eq!(0x78281FB9, crc_written);
         //println!("crc is {:#0X}", crc_written);
+        Ok(())
     }
 
     // copy from header.rs

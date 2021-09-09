@@ -59,6 +59,8 @@ impl MSeed3Header {
         self.data_length
     }
 
+    /// Resets the values that may have changed since the record was deserialized, for example
+    /// due to modifying the data or adding extra headers.
     pub fn recalculated_lengths(
         &mut self,
         identifier_length: u8,
@@ -72,19 +74,19 @@ impl MSeed3Header {
         self.num_samples = num_samples;
     }
 
+    /// Create a minimal new header with time, data encoding, sample rate and number of samples.
+    /// All other fields are set to sensible defaults or zero.
     pub fn new(start: DateTime<Utc>, encoding: DataEncoding, sample_rate_period: f64, num_samples: usize) -> MSeed3Header {
-        let date = start.date();
-        let time = start.time();
-        MSeed3Header {
+        let mut header = MSeed3Header {
             record_indicator: MSeed3Header::REC_IND,
             format_version: 3 as u8,
             flags: 0 as u8,
-            nanosecond: time.nanosecond(),
-            year: date.year() as u16,
-            day_of_year: date.ordinal() as u16,
-            hour: time.hour() as u8,
-            minute: time.minute() as u8,
-            second: time.second() as u8,
+            nanosecond: 0,
+            year: 2000,
+            day_of_year: 0,
+            hour: 0,
+            minute: 0,
+            second: 0,
             encoding,
             sample_rate_period,
             num_samples: num_samples as u32,
@@ -93,8 +95,11 @@ impl MSeed3Header {
             identifier_length: 0,
             extra_headers_length: 0,
             data_length: 0,
-        }
+        };
+        header.set_start_from_utc(start);
+        header
     }
+
 
     /// Reads a miniseed3 header from a BufReader.
     pub fn from_bytes(buffer: &[u8]) -> Result<MSeed3Header, MSeedError> {
@@ -176,6 +181,18 @@ impl MSeed3Header {
                 self.second as u32,
                 self.nanosecond,
             )
+    }
+
+    pub fn set_start_from_utc(&mut self, start: DateTime<Utc>) {
+        let date = start.date();
+        let time = start.time();
+
+        self.nanosecond = time.nanosecond()% 1_000_000_000;
+        self.year = date.year() as u16;
+        self.day_of_year = date.ordinal() as u16;
+        self.hour = time.hour() as u8;
+        self.minute = time.minute() as u8;
+        self.second = (time.second() + time.nanosecond()/1_000_000_000) as u8;
     }
 
     /// Start time as ISO8601 string
@@ -356,5 +373,21 @@ mod tests {
         assert_eq!(out, buf);
         assert_eq!(out[0..2], MSeed3Header::REC_IND);
         assert_eq!(buf[0..2], MSeed3Header::REC_IND);
+    }
+
+    #[test]
+    fn set_start_leap_second() {
+        let buf = get_dummy_header();
+        let mut header = MSeed3Header::from_bytes(&buf).unwrap();
+        let start = Utc.ymd(2016, 12, 31)
+            .and_hms_nano(
+                23,
+                59,
+                59,
+                1_900_000_000,
+            );
+        header.set_start_from_utc(start);
+        assert_eq!(header.nanosecond, 900_000_000);
+        assert_eq!(header.second, 60);
     }
 }

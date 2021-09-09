@@ -1,4 +1,5 @@
 use mseed3::MSeedError;
+use mseed3::FdsnSourceIdentifier;
 use std::io::Write;
 
 #[test]
@@ -10,7 +11,7 @@ fn lib_test() -> Result<(), MSeedError> {
     let num_samples = timeseries.len();
     let encoded_data = EncodedTimeseries::Int32(timeseries);
     let header = mseed3::MSeed3Header::new(start, DataEncoding::INT32, 10.0, num_samples);
-    let identifier = String::from("FDSN:CO_BIRD_00_H_H_Z");
+    let identifier = FdsnSourceIdentifier::parse( "FDSN:CO_BIRD_00_H_H_Z")?;
     let extra_headers = ExtraHeaders::Raw(String::from("{}"));
     let mut record = mseed3::MSeed3Record::new(header, identifier, extra_headers, encoded_data);
 
