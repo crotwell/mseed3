@@ -2,6 +2,7 @@ use crate::MSeedError;
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
 use std::fmt;
+use std::convert::TryFrom;
 
 lazy_static! {
     static ref PARSE_FDSN_REGEX: Regex = Regex::new(
@@ -19,6 +20,55 @@ lazy_static! {
 }
 
 pub const PREFIX: &str = "FDSN:";
+
+
+#[derive(Debug, Clone)]
+pub enum SourceIdentifier {
+    Raw(String),
+    Fdsn(FdsnSourceIdentifier),
+}
+impl SourceIdentifier {
+    pub fn calc_len(&self) -> u8 {
+        match self {
+            SourceIdentifier::Raw(s) => s.len() as u8,
+            SourceIdentifier::Fdsn(f) => f.calc_len(),
+        }
+    }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        match self {
+            SourceIdentifier::Raw(s) => Vec::from(s.as_bytes()),
+            SourceIdentifier::Fdsn(f) => f.as_bytes(),
+        }
+    }
+}
+
+impl From<&str> for SourceIdentifier {
+    fn from(s: &str) -> Self {
+        let sid = FdsnSourceIdentifier::parse(&s);
+        match sid {
+            Ok(fdsn) => SourceIdentifier::Fdsn(fdsn),
+            Err(_) => SourceIdentifier::Raw(s.to_string()),
+        }
+    }
+}
+impl TryFrom<Vec<u8>> for SourceIdentifier {
+    type Error = MSeedError;
+
+    fn try_from(v: Vec<u8>) -> Result<Self, Self::Error> {
+        let s = String::from_utf8(v)?;
+        Ok(SourceIdentifier::from(&*s))
+    }
+}
+
+impl fmt::Display for SourceIdentifier {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            SourceIdentifier::Raw(s) => write!(f, "{}", s),
+            SourceIdentifier::Fdsn(fdsn) => write!(f, "{}", fdsn),
+        }
+    }
+}
 
 /// An FDSN Source Identifier string parsed into its component parts
 /// See the specification at <http://docs.fdsn.org/projects/source-identifiers/en/v1.0/index.html>

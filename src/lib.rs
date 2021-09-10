@@ -20,7 +20,7 @@
 //! let encoded_data = EncodedTimeseries::Int32(timeseries);
 //! let header = mseed3::MSeed3Header::new(start, DataEncoding::INT32, 10.0, num_samples);
 //! let identifier = SourceIdentifier::from("FDSN:CO_BIRD_00_H_H_Z");
-//! let extra_headers = ExtraHeaders::Raw(String::from("{}"));
+//! let extra_headers = ExtraHeaders::new();
 //! let record = mseed3::MSeed3Record::new(header, identifier, extra_headers, encoded_data);
 //! # Ok(())
 //! # }
@@ -41,7 +41,7 @@
 //! # let encoded_data = EncodedTimeseries::Int32(timeseries);
 //! # let header = mseed3::MSeed3Header::new(start, DataEncoding::INT32, 10.0, num_samples);
 //! # let identifier = SourceIdentifier::from("FDSN:CO_BIRD_00_H_H_Z");
-//! # let extra_headers = ExtraHeaders::Raw(String::from("{}"));
+//! # let extra_headers = ExtraHeaders::new();
 //! # let mut record = mseed3::MSeed3Record::new(header, identifier, extra_headers, encoded_data);
 //! println!("{}", record);
 //! # Ok(())
@@ -72,7 +72,7 @@
 //! # let encoded_data = EncodedTimeseries::Int32(timeseries);
 //! # let header = mseed3::MSeed3Header::new(start, DataEncoding::INT32, 10.0, num_samples);
 //! # let identifier = SourceIdentifier::from("FDSN:CO_BIRD_00_H_H_Z");
-//! # let extra_headers = ExtraHeaders::Raw(String::from("{}"));
+//! # let extra_headers = ExtraHeaders::new();
 //! # let mut record = mseed3::MSeed3Record::new(header, identifier, extra_headers, encoded_data);
 //!
 //!     let outfile = std::fs::File::create("simple.ms3")?;
@@ -96,7 +96,7 @@
 //! # let encoded_data = EncodedTimeseries::Int32(timeseries);
 //! # let header = mseed3::MSeed3Header::new(start, DataEncoding::INT32, 10.0, num_samples);
 //! # let identifier = SourceIdentifier::from("FDSN:CO_BIRD_00_H_H_Z");
-//! # let extra_headers = ExtraHeaders::Raw(String::from("{}"));
+//! # let extra_headers = ExtraHeaders::new();
 //! # let mut record = mseed3::MSeed3Record::new(header, identifier, extra_headers, encoded_data);
 //!
 //!    # let outfile = std::fs::File::create("simple.ms3")?;
@@ -134,15 +134,17 @@ mod fdsn_source_identifier;
 mod header;
 mod mseed_error;
 mod record;
+mod extra_headers;
 
 use std::io::BufRead;
 
 pub use self::data_encoding::DataEncoding;
 pub use self::encoded_timeseries::EncodedTimeseries;
-pub use self::fdsn_source_identifier::FdsnSourceIdentifier;
+pub use self::fdsn_source_identifier::{FdsnSourceIdentifier, SourceIdentifier};
 pub use self::header::{MSeed3Header, FIXED_HEADER_SIZE};
 pub use self::mseed_error::MSeedError;
-pub use self::record::{ExtraHeaders, MSeed3Record, SourceIdentifier, CASTAGNOLI};
+pub use self::extra_headers::{ExtraHeaders, FDSN_EXTRA_HEADERS};
+pub use self::record::{MSeed3Record, CASTAGNOLI};
 
 /// Read miniseed3 records from a BufReader.
 ///
