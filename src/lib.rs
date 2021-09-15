@@ -147,6 +147,8 @@ pub use self::fdsn_source_identifier::{FdsnSourceIdentifier, SourceIdentifier};
 pub use self::header::{MSeed3Header, FIXED_HEADER_SIZE};
 pub use self::mseed_error::MSeedError;
 pub use self::record::{MSeed3Record, CASTAGNOLI};
+pub use self::steim1::{decode, encode};
+pub use self::steim_frame_block::{SteimFrame, SteimFrameBlock};
 
 /// Read miniseed3 records from a BufReader.
 ///

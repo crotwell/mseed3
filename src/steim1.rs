@@ -137,14 +137,14 @@ pub fn encode(samples: &[i32], frames: usize) -> Result<SteimFrameBlock, MSeedEr
     //
     // now begin looping over differences
     // iterator produces first sample, then differences to all remaining values
-    let mut diff_iter = samples.iter().scan(0, |state, &x| {
+    let diff_iter = samples.iter().scan(0, |state, &x| {
         let d = x - *state;
         *state = x;
         Some(d)
     });
 
     let mut num_samples = 0;
-    let mut by_four = ByFours::new(diff_iter);
+    let by_four = ByFours::new(diff_iter);
     let mut first_sample = true;
 
     'outer: loop {
@@ -175,7 +175,6 @@ pub fn encode(samples: &[i32], frames: usize) -> Result<SteimFrameBlock, MSeedEr
         if frame_idx > 0 {
             // last partially filled the frame, push
             frame_block.steim_frame.push(frame);
-            frame_idx = 0;
         }
         break;
     }
@@ -202,7 +201,6 @@ fn extract_samples(bytes: &[u8], offset: usize) -> Result<Vec<i32>, MSeedError> 
     let nibbles = <[u8; 4]>::try_from(&bytes[offset..offset + 4]).unwrap();
     let nibbles = u32::from_be_bytes(nibbles);
     let mut temp = Vec::new(); // 4 samples * 16 longwords, can't be more
-    let mut curr_num = 0;
     for i in 1..16 {
         // i is the word number of the frame starting at 0
         //curr_nibble = (nibbles >>> (30 - i*2 ) ) & 0x03; // count from top to bottom each nibble in W(0)
@@ -225,7 +223,6 @@ fn extract_samples(bytes: &[u8], offset: usize) -> Result<Vec<i32>, MSeedError> 
                     let v = <[u8; 4]>::try_from(&bytes[offset_idx..offset_idx + 4]).unwrap();
                     let v = i32::from_be_bytes(v);
                     temp.push(v);
-                    curr_num += 1;
                 }
             }
             1 => {
@@ -233,7 +230,6 @@ fn extract_samples(bytes: &[u8], offset: usize) -> Result<Vec<i32>, MSeedError> 
                 for n in 0..4 {
                     temp.push((bytes[offset_idx + (i * 4) + n] as i8) as i32);
                 }
-                curr_num += 4;
             }
             2 => {
                 //("2 means 2 two byte differences");
@@ -243,14 +239,12 @@ fn extract_samples(bytes: &[u8], offset: usize) -> Result<Vec<i32>, MSeedError> 
                             .unwrap();
                     temp.push(i16::from_be_bytes(v) as i32);
                 }
-                curr_num += 2;
             }
             3 => {
                 //("3 means 1 four byte difference");
                 let v = <[u8; 4]>::try_from(&bytes[offset_idx..offset_idx + 4]).unwrap();
                 let v = i32::from_be_bytes(v);
                 temp.push(v);
-                curr_num += 1;
             }
             _ => {
                 panic!("Cannot happen");
@@ -273,7 +267,7 @@ impl<I> ByFours<I>
 where
     I: Iterator<Item = i32>,
 {
-    pub fn new(mut diff_iter: I) -> ByFours<I> {
+    pub fn new(diff_iter: I) -> ByFours<I> {
         ByFours::<I> {
             diff_iter,
             prev: VecDeque::new(),
@@ -420,7 +414,7 @@ mod tests {
     #[test]
     fn by_four() -> Result<(), MSeedError> {
         let data = [1, -1, -1, -1, 20, -300, 160, -18000];
-        let mut diff_iter = data.iter().scan(0, |state, &x| {
+        let diff_iter = data.iter().scan(0, |state, &x| {
             let d = x - *state;
             *state = x;
             Some(d)
@@ -440,13 +434,12 @@ mod tests {
                     if let Steim1Word::One(_) = byfour.next().unwrap() {
                         // then single value -18000
                         found += 1;
-                        return Ok(());
                     }
                 }
             }
         }
         assert_eq!(found, data.len());
-        Err(MSeedError::Unknown(String::from("Shouldn't  happen")))
+        return Ok(());
     }
 
     #[test]
