@@ -8,14 +8,20 @@ use std::io::BufWriter;
 
 use crate::data_encoding::DataEncoding;
 use crate::encoded_timeseries::EncodedTimeseries;
+use crate::extra_headers::ExtraHeaders;
 use crate::fdsn_source_identifier::{FdsnSourceIdentifier, SourceIdentifier};
 use crate::header::{MSeed3Header, CRC_OFFSET, FIXED_HEADER_SIZE};
-use crate::extra_headers::ExtraHeaders;
 use crate::mseed_error::MSeedError;
 use std::convert::TryFrom;
 
 pub const CASTAGNOLI: Crc<u32> = Crc::<u32>::new(&CRC_32_ISCSI);
 
+/// Miniseed3 record, consisting of a fixed header, a string identifier, json extra headers and
+/// encoded timeseries points.
+///
+/// See the spec at
+/// <https://miniseed3.readthedocs.io> now or at
+/// <https://docs.fdsn.org/projects/miniSEED3>.
 
 #[derive(Debug, Clone)]
 pub struct MSeed3Record {
@@ -98,8 +104,7 @@ impl MSeed3Record {
         sample_rate_period: f64,
         data: Vec<i32>,
     ) -> MSeed3Record {
-        let header =
-            MSeed3Header::new(start, DataEncoding::INT32, sample_rate_period, data.len());
+        let header = MSeed3Header::new(start, DataEncoding::INT32, sample_rate_period, data.len());
         MSeed3Record::new(
             header,
             SourceIdentifier::Fdsn(FdsnSourceIdentifier::create_fake_channel()),
@@ -242,7 +247,6 @@ impl MSeed3Record {
         buf.flush()?;
         Ok(())
     }
-
 
     pub fn get_record_size(&self) -> u32 {
         self.header.get_record_size()

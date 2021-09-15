@@ -1,8 +1,8 @@
 use crate::MSeedError;
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
-use std::fmt;
 use std::convert::TryFrom;
+use std::fmt;
 
 lazy_static! {
     static ref PARSE_FDSN_REGEX: Regex = Regex::new(
@@ -20,7 +20,6 @@ lazy_static! {
 }
 
 pub const PREFIX: &str = "FDSN:";
-
 
 #[derive(Debug, Clone)]
 pub enum SourceIdentifier {
