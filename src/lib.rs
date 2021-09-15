@@ -130,20 +130,22 @@
 
 mod data_encoding;
 mod encoded_timeseries;
+mod extra_headers;
 mod fdsn_source_identifier;
 mod header;
 mod mseed_error;
 mod record;
-mod extra_headers;
+mod steim1;
+mod steim_frame_block;
 
 use std::io::BufRead;
 
 pub use self::data_encoding::DataEncoding;
 pub use self::encoded_timeseries::EncodedTimeseries;
+pub use self::extra_headers::{ExtraHeaders, FDSN_EXTRA_HEADERS};
 pub use self::fdsn_source_identifier::{FdsnSourceIdentifier, SourceIdentifier};
 pub use self::header::{MSeed3Header, FIXED_HEADER_SIZE};
 pub use self::mseed_error::MSeedError;
-pub use self::extra_headers::{ExtraHeaders, FDSN_EXTRA_HEADERS};
 pub use self::record::{MSeed3Record, CASTAGNOLI};
 
 /// Read miniseed3 records from a BufReader.
