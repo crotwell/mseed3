@@ -24,7 +24,7 @@ impl SteimFrame {
     }
     pub fn set_word(&mut self, word: u32, nibble: u32, idx: usize) {
         self.words[idx] = word;
-        assert!(idx < 16, "nubble idx must be 0..16, {}",idx);
+        assert!(idx < 16, "nubble idx must be 0..16, {}", idx);
         self.nibbles = self.nibbles + (nibble << (30 - 2 * idx as u32))
     }
 }
@@ -98,14 +98,9 @@ impl SteimFrameBlock {
      */
     pub fn reverse_integration_constant(&mut self, v: i32) {
         assert_ne!(self.steim_frame.len(), 0);
-        self.steim_frame[0].set_word(
-            u32::from_be_bytes(v.to_be_bytes()),
-            0,
-            1,
-        );
+        self.steim_frame[0].set_word(u32::from_be_bytes(v.to_be_bytes()), 0, 1);
     }
 }
-
 
 #[cfg(test)]
 mod tests {
