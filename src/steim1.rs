@@ -285,9 +285,8 @@ fn extractSamples(bytes: &[u8], offset: usize) -> Result<Vec<i32>, MSeedError> {
             2 => {
                 //System.out.println("2 means 2 two byte differences");
                 for n in 0..2 {
-                    let v = <[u8; 2]>::try_from(&bytes[offset..offset + 2]).unwrap();
-                    let v = i16::from_be_bytes(v);
-                    temp.push(v as i32);
+                    let v = <[u8; 2]>::try_from(&bytes[(offset+2*n)..(offset + 2+2*n)]).unwrap();
+                    temp.push(i16::from_be_bytes(v) as i32);
                 }
                 currNum += 2;
             }
@@ -412,9 +411,9 @@ impl Steim1Word {
             Steim1Word::One(a) => u32::from_be_bytes(a.to_be_bytes()),
         };
         let nibble = match self {
-            Steim1Word::Four(a, b, c, d) => 1 as u32,
-            Steim1Word::Two(a, b) => 2 as u32,
-            Steim1Word::One(a) => 3 as u32,
+            Steim1Word::Four(_a, _b, _c, _d) => 1 as u32,
+            Steim1Word::Two(_a, _b) => 2 as u32,
+            Steim1Word::One(_a) => 3 as u32,
         };
         frame.set_word(word, nibble, frame_idx);
         frame_idx + 1
