@@ -41,7 +41,7 @@ impl SteimFrame {
  */
 
 pub struct SteimFrameBlock {
-    pub num_samples: usize,          // number of samples represented
+    pub num_samples: usize,           // number of samples represented
     pub steim_version: usize,         // Steim version number
     pub steim_frame: Vec<SteimFrame>, // array of frames;
 }
@@ -65,7 +65,7 @@ impl SteimFrameBlock {
      */
     pub fn new(steim_version: usize) -> SteimFrameBlock {
         SteimFrameBlock {
-			steim_version,
+            steim_version,
             num_samples: 0, // number of samples represented
             steim_frame: Vec::new(),
         }

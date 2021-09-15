@@ -73,12 +73,12 @@ pub fn decode_with_bias(
         if i == 0 {
             // special case for first frame
             last_value = bias; // assign our X(-1)
-                              // x0 and xn are in 1 and 2 spots
+                               // x0 and xn are in 1 and 2 spots
             start = temp_samples[1]; // X(0) is byte 1 for frame 0
             end = temp_samples[2]; // X(n) is byte 2 for frame 0
             first_data = 3; // d(0) is byte 3 for frame 0
-                           //System.err.println("DEBUG: frame " + i + ", bias = " + bias + ", x(0) = " + start + ", x(n) = " + end);
-                           // if bias was zero, then we want the first sample to be X(0) constant
+                            //System.err.println("DEBUG: frame " + i + ", bias = " + bias + ", x(0) = " + start + ", x(n) = " + end);
+                            // if bias was zero, then we want the first sample to be X(0) constant
             if bias == 0 {
                 last_value = start - temp_samples[3]; // X(-1) = X(0) - d(0)
             }
