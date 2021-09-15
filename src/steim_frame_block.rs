@@ -8,7 +8,7 @@ use std::io::prelude::*;
  */
 pub struct SteimFrame {
     nibbles: u32,
-    words: [u32; 15],
+    pub(crate) words: [u32; 15],
     // 16 32-byte words
 }
 
@@ -24,7 +24,8 @@ impl SteimFrame {
     }
     pub fn set_word(&mut self, word: u32, nibble: u32, idx: usize) {
         self.words[idx] = word;
-        self.nibbles = self.nibbles + (nibble * 2_u32.pow((15 - 2 * idx) as u32))
+        assert!(idx < 16, "nubble idx must be 0..16, {}",idx);
+        self.nibbles = self.nibbles + (nibble << (30 - 2 * idx as u32))
     }
 }
 
@@ -80,9 +81,9 @@ impl SteimFrameBlock {
     pub fn get_encoded_data(&self) -> Result<Vec<u8>, MSeedError> {
         let mut encoded_data = Vec::new();
         for f in &self.steim_frame {
-            encoded_data.write_all(&f.nibbles.to_be_bytes());
+            encoded_data.write_all(&f.nibbles.to_be_bytes())?;
             for w in f.words {
-                encoded_data.write_all(&w.to_be_bytes());
+                encoded_data.write_all(&w.to_be_bytes())?;
             }
         }
         Ok(encoded_data)
@@ -95,7 +96,31 @@ impl SteimFrameBlock {
      * fill the frame block before all samples have been read.
      * @param word integer value to be placed in X(N)
      */
-    fn reverse_integration_constant(&mut self, word: u32) {
-        self.steim_frame[0].words[1] = word;
+    pub fn reverse_integration_constant(&mut self, v: i32) {
+        assert_ne!(self.steim_frame.len(), 0);
+        self.steim_frame[0].set_word(
+            u32::from_be_bytes(v.to_be_bytes()),
+            0,
+            1,
+        );
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reverse_integration_constant() -> Result<(), MSeedError> {
+        let mut frame_block = SteimFrameBlock::new(1);
+        frame_block.steim_frame.push(SteimFrame::new());
+        frame_block.reverse_integration_constant(1);
+        let enc_data = frame_block.get_encoded_data()?;
+        assert_eq!(enc_data[8], 0 as u8);
+        assert_eq!(enc_data[9], 0 as u8);
+        assert_eq!(enc_data[10], 0 as u8);
+        assert_eq!(enc_data[11], 1 as u8);
+        Ok(())
     }
 }

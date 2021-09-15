@@ -42,12 +42,7 @@ use std::convert::TryFrom;
  *  @throws SteimException - encoded data length is not multiple of 64
  *  bytes.
  */
-pub fn decode_with_bias(
-    b: &[u8],
-    num_samples: u32,
-    swap_bytes: bool,
-    bias: i32,
-) -> Result<Vec<i32>, MSeedError> {
+pub fn decode_with_bias(b: &[u8], num_samples: u32, bias: i32,) -> Result<Vec<i32>, MSeedError> {
     // Decode Steim1 compression format from the provided byte array, which contains num_samples number
     // of samples.  swap_bytes is set to true if the value words are to be byte swapped.  bias represents
     // a previous value which acts as a starting constant for continuing differences integration.  At the
@@ -68,23 +63,21 @@ pub fn decode_with_bias(
     //System.err.println("DEBUG: number of samples: " + num_samples + ", number of frames: " + num_frames + ", byte array size: " + b.length);
     for i in 0..num_frames {
         //System.err.println("DEBUG: start of frame " + i);
-        let temp_samples = extractSamples(b, i * 64)?; // returns only differences except for frame 0
+        let temp_samples = extract_samples(b, i * 64)?; // returns only differences except for frame 0
+        for ts in &temp_samples {
+            print!("temp_samples {}, ", ts);
+        }
+        println!();
         let mut first_data = 0; // d(0) is byte 0 by default
+        let mut ts_itr = temp_samples.iter();
         if i == 0 {
             // special case for first frame
-            last_value = bias; // assign our X(-1)
-                               // x0 and xn are in 1 and 2 spots
-            start = temp_samples[1]; // X(0) is byte 1 for frame 0
-            end = temp_samples[2]; // X(n) is byte 2 for frame 0
-            first_data = 3; // d(0) is byte 3 for frame 0
-                            //System.err.println("DEBUG: frame " + i + ", bias = " + bias + ", x(0) = " + start + ", x(n) = " + end);
-                            // if bias was zero, then we want the first sample to be X(0) constant
-            if bias == 0 {
-                last_value = start - temp_samples[3]; // X(-1) = X(0) - d(0)
-            }
+            start = *ts_itr.next().unwrap(); // X(0) is byte 1 for frame 0
+            samples.push(start);
+            last_value = start;
+            end = *ts_itr.next().unwrap(); // X(n) is byte 2 for frame 0
         }
-        //System.err.print("DEBUG: ");
-        for s in temp_samples {
+        for s in ts_itr {
             last_value = last_value + s;
             samples.push(last_value)
         }
@@ -92,11 +85,13 @@ pub fn decode_with_bias(
     } // end for each frame...
     if samples.len() != nsamp {
         return Err(MSeedError::Compression(format!(
-            "Number of samples decompressed doesn't match number in header: {} != {}",
+            "Number of samples decompressed doesn't match number in header: decomp: {} != {}, header",
             samples.len(),
             num_samples
         )));
     }
+    assert_eq!(samples[0], start);
+    assert_eq!(samples[samples.len()-1], end);
     // ignore last sample check???
     //if (end != samples[num_samples-1]) {
     //    throw new SteimException("Last sample decompressed doesn't match value x(n) value in Steim1 record: "+samples[num_samples-1]+" != "+end);
@@ -109,23 +104,21 @@ pub fn decode_with_bias(
  *
  * see edu.iris.Fissures.codec.Steim1#decode(byte[],int,boolean,int)
  */
-pub fn decode(b: &[u8], num_samples: u32, swap_bytes: bool) -> Result<Vec<i32>, MSeedError> {
+pub fn decode(b: &[u8], num_samples: u32) -> Result<Vec<i32>, MSeedError> {
     // zero-bias version of decode
-    return decode_with_bias(b, num_samples, swap_bytes, 0);
+    return decode_with_bias(b, num_samples, 0);
 }
 
 /**
 	* Encode the array of integer values into a Steim 1 * compressed byte frame block.
 	* This algorithm will not create a byte block any greater * than 63 64-byte frames.
-	* <b>frames</b> represents the number of frames to be written.
+	* <b>frames</b> represents the maximum number of frames to be written.
 	* This number should be determined from the desired logical record length
 	* <i>minus</i> the data offset from the record header (modulo 64)
 	* If <b>samples</b> is exhausted before all frames are filled, the remaining frames
 	* will be nulls.
-	* <b>bias</b> is a value carried over from a previous data record, representing
-	* X(-1)...set to 0 otherwise
 	* @param samples the data points represented as signed integers
-	* @param frames the number of Steim frames to use in the encoding
+	* @param frames the number of Steim frames to use in the encoding, 0 for unlimited
 	* @param bias offset for use as a constant for the first difference, otherwise
 	* set to 0
 	* @return SteimFrameBlock containing encoded byte array
@@ -133,46 +126,18 @@ pub fn decode(b: &[u8], num_samples: u32, swap_bytes: bool) -> Result<Vec<i32>, 
 	* @throws SteimException number of frames is not a positive value
 	* @throws SteimException cannot encode more than 63 frames
 	*/
-pub fn encode_with_bias(
+pub fn encode(
     samples: &[i32],
     frames: usize,
-    bias: i32,
-) -> Result<SteimFrameBlock, MSeedError> {
-    return encode_with_offset(samples, frames, bias, 0);
-}
-
-pub fn encode_with_offset(
-    samples: &[i32],
-    frames: usize,
-    bias: i32,
-    offset: usize,
 ) -> Result<SteimFrameBlock, MSeedError> {
     if samples.len() == 0 {
         return Err(MSeedError::Compression(String::from(
             "samples array is zero size",
         )));
     }
-    if frames <= 0 {
-        return Err(MSeedError::Compression(String::from(
-            "number of frames is not a positive value",
-        )));
-    }
-    if frames > 63 {
-        return Err(MSeedError::Compression(format!(
-            "cannot encode more than 63 frames, you asked for {}",
-            frames
-        )));
-    }
-    if offset >= samples.len() {
-        return Err(MSeedError::Compression(format!(
-            "Offset bigger than samples array: {} >= {}",
-            offset,
-            samples.len()
-        )));
-    }
     // all encoding will be contained within a frame block
     // Steim encoding 1
-    let mut frameBlock = SteimFrameBlock::new(1);
+    let mut frame_block = SteimFrameBlock::new(1);
     //
     // pass through the list of samples, and pass encoded words
     // to frame block
@@ -182,8 +147,7 @@ pub fn encode_with_offset(
     // first initialize the first frame with integration constant X(0)
     // and reverse integration constant X(N)
     // ...reverse integration constant may need to be changed if
-    // the frameBlock fills up.
-    let mut frame = SteimFrame::new();
+    // the frame_block fills up.
     //
     // now begin looping over differences
     // iterator produces first sample, then differences to all remaining values
@@ -193,41 +157,46 @@ pub fn encode_with_offset(
         Some(d)
     });
 
-    // set first value into first 4 bytes after nibbles
-    frame.set_word(
-        u32::from_be_bytes(diff_iter.next().unwrap().to_be_bytes()),
-        0,
-        0,
-    );
-    // and last value after
-    frame.set_word(
-        u32::from_be_bytes(samples[samples.len() - 1].to_be_bytes()),
-        0,
-        1,
-    );
-    let mut frame_idx: usize = 2;
-    let num_samples = 1;
+    let mut num_samples = 0;
+    let mut by_four = ByFours::new(diff_iter);
+    let mut first_sample = true;
 
-    let by_four = ByFours::new(diff_iter);
-    for chunk in by_four {
-        frame_idx = chunk.add_to_frame(&mut frame, frame_idx);
-        if frame_idx == 15 {
-            // filled the frame
-            frameBlock.steim_frame.push(frame);
-            frame = SteimFrame::new();
+    'outer: loop {
+        let mut frame = SteimFrame::new();
+        let mut frame_idx = 0;
+        for chunk in by_four {
+            if first_sample {
+                match chunk {
+                    Steim1Word::One(v) => frame.set_word(u32::from_be_bytes(v.to_be_bytes()), 0, 0),
+                    v => panic!("first sample must be one 4-byte value, but {:?}", v),
+                }
+                first_sample = false;
+                frame_idx += 2; //skip past the last sample in second word
+            } else {
+                frame_idx = chunk.add_to_frame(&mut frame, frame_idx);
+            }
+            num_samples += chunk.num_samples();
+            if frame_idx == 15 {
+                // filled the frame, push a new one
+                if frame_block.steim_frame.len() == frames {
+                    // zero means unlimited, but len() always >=1, so ok
+                    frame_block.steim_frame.push(frame);
+                    break 'outer;
+                }
+                break;
+            }
+        }
+        if (frame_idx > 0) {
+            // last partially filled the frame, push
+            frame_block.steim_frame.push(frame);
             frame_idx = 0;
         }
+        break;
     }
-    frameBlock.num_samples = samples.len();
-    return Ok(frameBlock);
-}
-
-/**
- * Abbreviated zero-bias version of encode().
- * see edu.iris.Fissures.codec.Steim1#encode(int[],int,int)
- */
-pub fn encode(samples: &[i32], frames: usize) -> Result<SteimFrameBlock, MSeedError> {
-    return encode_with_bias(samples, frames, 0); // zero-bias version of encode
+    frame_block.num_samples = num_samples;
+    assert_ne!(frame_block.steim_frame.len(), 0);
+    frame_block.reverse_integration_constant(samples[num_samples-1]);
+    return Ok(frame_block);
 }
 
 /**
@@ -242,18 +211,18 @@ pub fn encode(samples: &[i32], frames: usize) -> Result<SteimFrameBlock, MSeedEr
  * @param swapBytes reverse the endian-ness of the compressed bytes being read
  * @return integer array of difference (and constant) values
  */
-fn extractSamples(bytes: &[u8], offset: usize) -> Result<Vec<i32>, MSeedError> {
+fn extract_samples(bytes: &[u8], offset: usize) -> Result<Vec<i32>, MSeedError> {
     /* get nibbles */
     let nibbles = <[u8; 4]>::try_from(&bytes[offset..offset + 4]).unwrap();
     let nibbles = u32::from_be_bytes(nibbles);
     let mut temp = Vec::new(); // 4 samples * 16 longwords, can't be more
-    let mut currNum = 0;
+    let mut curr_num = 0;
     //System.err.print ("DEBUG: ");
     for i in 1..16 {
         // i is the word number of the frame starting at 0
-        //currNibble = (nibbles >>> (30 - i*2 ) ) & 0x03; // count from top to bottom each nibble in W(0)
-        let currNibble = (nibbles >> (30 - i * 2)) & 0x03; // count from top to bottom each nibble in W(0)
-                                                           //System.err.print("c(" + i + ")" + currNibble + ",");  // DEBUG
+        //curr_nibble = (nibbles >>> (30 - i*2 ) ) & 0x03; // count from top to bottom each nibble in W(0)
+        let curr_nibble = (nibbles >> (32 - i * 2)) & 0x03; // count from top to bottom each nibble in W(0)
+                                                           //System.err.print("c(" + i + ")" + curr_nibble + ",");  // DEBUG
                                                            // Rule appears to be:
                                                            // only check for byte-swap on actual value-atoms, so a 32-bit word in of itself
                                                            // is not swapped, but two 16-bit short *values* are or a single
@@ -261,41 +230,44 @@ fn extractSamples(bytes: &[u8], offset: usize) -> Result<Vec<i32>, MSeedError> {
                                                            // are naturally not swapped.
                                                            // It would seem that the W(0) word is swap-checked, though, which is confusing...
                                                            // maybe it has to do with the reference to high-order bits for c(0)
-        match currNibble {
+println!("decode: i: {}  of: {}  nib: {}", i, offset, curr_nibble);
+        let offset_idx = offset + 4*i;
+        match curr_nibble {
             0 => {
                 //System.out.println("0 means header info");
                 // only include header info if offset is 0
                 // headers can only occur in the second and third 4-byte chunk, so ignore after that
                 // second byte, i=1, holds first sample
                 // third word, i=2, holds last sample, only used for validation
-                if (offset == 0 && i == 1) {
-                    let v = <[u8; 4]>::try_from(&bytes[offset..offset + 4]).unwrap();
-                    let v = i32::from_be_bytes(v);
+                if (offset == 0 && (i == 1 || i ==2)) {
+                    let v = <[u8; 4]>::try_from(&bytes[offset_idx..offset_idx + 4]).unwrap();
+                    println!(" first/last: {} {} {} {}",bytes[offset_idx], bytes[offset_idx+1], bytes[offset_idx+2], bytes[offset_idx+3]);
+                    let v = i32::from_be_bytes([bytes[offset_idx], bytes[offset_idx+1], bytes[offset_idx+2], bytes[offset_idx+3]]);
                     temp.push(v);
-                    currNum += 1;
+                    curr_num += 1;
                 }
             }
             1 => {
                 //System.out.println("1 means 4 one byte differences");
                 for n in 0..4 {
-                    temp.push((bytes[offset + (i * 4) + n] as i8) as i32);
+                    temp.push((bytes[offset_idx + (i * 4) + n] as i8) as i32);
                 }
-                currNum += 4;
+                curr_num += 4;
             }
             2 => {
                 //System.out.println("2 means 2 two byte differences");
                 for n in 0..2 {
-                    let v = <[u8; 2]>::try_from(&bytes[(offset+2*n)..(offset + 2+2*n)]).unwrap();
+                    let v = <[u8; 2]>::try_from(&bytes[(offset_idx+2*n)..(offset_idx + 2+2*n)]).unwrap();
                     temp.push(i16::from_be_bytes(v) as i32);
                 }
-                currNum += 2;
+                curr_num += 2;
             }
             3 => {
                 //System.out.println("3 means 1 four byte difference");
-                let v = <[u8; 4]>::try_from(&bytes[offset..offset + 4]).unwrap();
+                let v = <[u8; 4]>::try_from(&bytes[offset_idx..offset_idx + 4]).unwrap();
                 let v = i32::from_be_bytes(v);
                 temp.push(v);
-                currNum += 1;
+                curr_num += 1;
             }
             _ => {
                 panic!("Cannot happen");
@@ -305,12 +277,14 @@ fn extractSamples(bytes: &[u8], offset: usize) -> Result<Vec<i32>, MSeedError> {
     return Ok(temp);
 }
 
+#[derive(Debug)]
 struct ByFours<I>
 where
     I: Iterator<Item = i32>,
 {
     diff_iter: I,
     prev: VecDeque<i32>,
+    first: bool,
 }
 impl<I> ByFours<I>
 where
@@ -320,6 +294,7 @@ where
         ByFours::<I> {
             diff_iter,
             prev: VecDeque::new(),
+            first: true,
         }
     }
 }
@@ -330,7 +305,12 @@ where
     type Item = Steim1Word;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while (self.prev.len() < 4) {
+        if self.first {
+            self.first = false;
+            // first is always single 4-byte value
+            return Some(Steim1Word::One(self.diff_iter.next()?));
+        }
+        while self.prev.len() < 4 {
             match &self.diff_iter.next() {
                 Some(v) => self.prev.push_back(*v),
                 None => {
@@ -361,11 +341,10 @@ where
             && ok_i8(self.prev[2])
         {
             // this case should only happen at end, so pad with 0 to encode 4 bytes
-            return Some(Steim1Word::Four(
+            return Some(Steim1Word::Three(
                 self.prev.pop_front()? as i8,
                 self.prev.pop_front()? as i8,
                 self.prev.pop_front()? as i8,
-                0,
             ));
         } else if self.prev.len() > 2 && ok_i16(self.prev[0]) && ok_i16(self.prev[1]) {
             // two two-byte values
@@ -388,8 +367,10 @@ pub fn ok_i16(v: i32) -> bool {
     -32768 <= v && v <= 32767
 }
 
+#[derive(Debug)]
 enum Steim1Word {
     Four(i8, i8, i8, i8),
+    Three(i8, i8, i8),
     Two(i16, i16),
     One(i32),
 }
@@ -403,6 +384,12 @@ impl Steim1Word {
                 c.to_be_bytes()[0],
                 d.to_be_bytes()[0],
             ]),
+            Steim1Word::Three(a, b, c) => u32::from_be_bytes([
+                a.to_be_bytes()[0],
+                b.to_be_bytes()[0],
+                c.to_be_bytes()[0],
+                0,
+            ]),
             Steim1Word::Two(a, b) => {
                 let a = a.to_be_bytes();
                 let b = b.to_be_bytes();
@@ -412,10 +399,100 @@ impl Steim1Word {
         };
         let nibble = match self {
             Steim1Word::Four(_a, _b, _c, _d) => 1 as u32,
+            Steim1Word::Three(_a, _b, _c) => 1 as u32,
             Steim1Word::Two(_a, _b) => 2 as u32,
             Steim1Word::One(_a) => 3 as u32,
         };
         frame.set_word(word, nibble, frame_idx);
         frame_idx + 1
+    }
+    pub fn num_samples(&self) -> usize {
+        match self {
+            Steim1Word::Four(_a, _b, _c, _d) => 4 as usize,
+            Steim1Word::Three(_a, _b, _c) => 3 as usize,
+            Steim1Word::Two(_a, _b) => 2 as usize,
+            Steim1Word::One(_a) => 1 as usize,
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn diff_iter() {
+        let data = [1, -1, -1, -1, 20, -300, 160, -18000];
+        let mut diff_iter = data.iter().scan(0, |state, &x| {
+            let d = x - *state;
+            *state = x;
+            Some(d)
+        });
+        assert_eq!(diff_iter.next().unwrap(), data[0]);
+        for i in 1..data.len() {
+            assert_eq!(diff_iter.next().unwrap(), data[i]-data[i-1]);
+        }
+    }
+
+    #[test]
+    fn by_four()-> Result<(), MSeedError>  {
+        let data = [ 1, -1, -1, -1, 20, -300, 160, -18000];
+        let mut diff_iter = data.iter().scan(0, |state, &x| {
+            let d = x - *state;
+            *state = x;
+            Some(d)
+        });
+        let mut found = 0;
+        let mut byfour = ByFours::new(diff_iter);
+
+        if let Steim1Word::One(_) = byfour.next().unwrap() {
+            // first should be single
+            found += 1;
+            if let Steim1Word::Four(_, _, _, _) = byfour.next().unwrap() {
+                // next 4 1-byte values, -1, -1, -1, 20
+                found += 4;
+                if let Steim1Word::Two(_, _) = byfour.next().unwrap() {
+                    // next 2 2-byte values, -300, 160
+                    found += 2;
+                    if let Steim1Word::One(_) = byfour.next().unwrap() {
+                        // then single value -18000
+                        found += 1;
+                        return Ok(());
+                    }
+                }
+            }
+        }
+        assert_eq!(found, data.len());
+        Err(MSeedError::Unknown(String::from("Shouldn't  happen")))
+    }
+
+    #[test]
+    fn data_round_trip() -> Result<(), MSeedError> {
+        let data = [ 1, -1, -1, -1, 200, -300, 16000, -18000, 20000, -40000];
+        let frame_block = encode(&data, 0)?;
+        assert_eq!(data.len(), frame_block.num_samples);
+        assert_ne!(frame_block.steim_frame.len(), 0);
+        assert_eq!(data[0], i32::from_be_bytes(frame_block.steim_frame[0].words[0].to_be_bytes()));
+        let enc_bytes = &frame_block.get_encoded_data()?;
+        assert_eq!(enc_bytes[4], 0);
+        assert_eq!(enc_bytes[5], 0);
+        assert_eq!(enc_bytes[6], 0);
+        assert_eq!(enc_bytes[7], 1);
+        let frame_data = extract_samples(&enc_bytes[0..64], 0)?;
+        assert_eq!(frame_data[0], 1);
+        assert_eq!(frame_data[1], -40000); // last sample
+        for i in 2..frame_data.len() {
+            assert_eq!(frame_data[i], data[i-1]-data[i-2], "i: {}  f: {}  d {} {}", i, frame_data[i], data[i], data[i-1]);
+        }
+        let rt_data = decode(&frame_block.get_encoded_data()?, frame_block.num_samples as u32)?;
+        assert_eq!(rt_data.len(), data.len());
+        let mut idx = 0;
+        for pair in rt_data.iter().zip(data.iter()) {
+            println!("rt {}  data: {} ",pair.0, pair.1);
+            assert_eq!(pair.0, pair.1, " index {}", idx);
+            idx+=1;
+        }
+        Ok(())
     }
 }
