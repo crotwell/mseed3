@@ -2,11 +2,20 @@
 name = "mseed3"
 version = "0.1.0"
 edition = "2018"
+authors = ["Philip Crotwell"]
+license = "MIT OR Apache-2.0"
+description = "Miniseed3 file format"
+readme = "README.md"
+repository = "https://github.com/crotwell/mseed3/"
+keywords = ["seismology", "fdsn"]
+categories = ["science", "parser-implementations"]
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 byteorder = "1"
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1"
 thiserror = "1.0"
 chrono = "0.4"
