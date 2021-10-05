@@ -1,6 +1,8 @@
 use crate::MSeedError;
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
+use serde::{Serialize, Deserialize, Serializer, Deserializer};
+use serde::de::{self, Visitor};
 use std::convert::TryFrom;
 use std::fmt;
 
@@ -42,6 +44,16 @@ impl SourceIdentifier {
     }
 }
 
+impl From<String> for SourceIdentifier {
+    fn from(s: String) -> Self {
+        let sid = FdsnSourceIdentifier::parse(&s);
+        match sid {
+            Ok(fdsn) => SourceIdentifier::Fdsn(fdsn),
+            Err(_) => SourceIdentifier::Raw(s),
+        }
+    }
+}
+
 impl From<&str> for SourceIdentifier {
     fn from(s: &str) -> Self {
         let sid = FdsnSourceIdentifier::parse(&s);
@@ -68,6 +80,20 @@ impl fmt::Display for SourceIdentifier {
         }
     }
 }
+
+impl Serialize for SourceIdentifier {
+
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            SourceIdentifier::Raw(s) => serializer.serialize_str(&s),
+            SourceIdentifier::Fdsn(fdsn) => serializer.serialize_str(&fdsn.to_string()),
+        }
+    }
+}
+
 
 /// An FDSN Source Identifier string parsed into its component parts
 /// See the specification at <http://docs.fdsn.org/projects/source-identifiers/en/v1.0/index.html>
@@ -158,6 +184,32 @@ fn capture_named(captures: &Captures, name: &str, id: &str) -> Result<String, MS
             id.to_string(),
             name.to_string(),
         )),
+    }
+}
+
+
+struct SourceIdentifierVisitor;
+
+impl<'de> Visitor<'de> for SourceIdentifierVisitor {
+    type Value = String;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a source identifier string")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(String::from(value))
+    }
+}
+impl<'de> Deserialize<'de> for SourceIdentifier {
+    fn deserialize<D>(deserializer: D) -> Result<SourceIdentifier, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(SourceIdentifier::from(deserializer.deserialize_str(SourceIdentifierVisitor)?))
     }
 }
 

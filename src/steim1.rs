@@ -1,5 +1,6 @@
 use crate::mseed_error::MSeedError;
 use crate::steim_frame_block::{SteimFrame, SteimFrameBlock};
+use serde::{Serialize, Deserialize};
 use std::collections::VecDeque;
 use std::convert::TryFrom;
 
@@ -254,7 +255,7 @@ fn extract_samples(bytes: &[u8], offset: usize) -> Result<Vec<i32>, MSeedError> 
     return Ok(temp);
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct ByFours<I>
 where
     I: Iterator<Item = i32>,
@@ -344,7 +345,7 @@ pub fn ok_i16(v: i32) -> bool {
     -32768 <= v && v <= 32767
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 enum Steim1Word {
     Four(i8, i8, i8, i8),
     Three(i8, i8, i8),

@@ -2,9 +2,12 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use chrono::prelude::*;
 use chrono::Utc;
 use crc::{Crc, CRC_32_ISCSI};
+use serde::{Serialize, Deserialize};
 use std::fmt;
 use std::io::prelude::*;
 use std::io::BufWriter;
+use std::str::FromStr;
+
 
 use crate::data_encoding::DataEncoding;
 use crate::encoded_timeseries::EncodedTimeseries;
@@ -23,7 +26,98 @@ pub const CASTAGNOLI: Crc<u32> = Crc::<u32>::new(&CRC_32_ISCSI);
 /// <https://miniseed3.readthedocs.io> now or at
 /// <https://docs.fdsn.org/projects/miniSEED3>.
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UnparsedMSeed3Record {
+    pub header: MSeed3Header,
+    pub identifier: SourceIdentifier,
+    pub extra_headers: String,
+    pub encoded_data: EncodedTimeseries,
+}
+
+impl UnparsedMSeed3Record {
+
+    /// Read a single record record from the BufRead
+    pub fn from_reader<R: BufRead>(buf_reader: &mut R) -> Result<UnparsedMSeed3Record, MSeedError> {
+        let mut buffer = [0; FIXED_HEADER_SIZE];
+        let _ = buf_reader
+            .by_ref()
+            .take(FIXED_HEADER_SIZE as u64)
+            .read(&mut buffer)?;
+        let mut header = MSeed3Header::try_from(&buffer)?;
+        // set crc field to zero for crc calculation, header has already read value
+        buffer[CRC_OFFSET] = 0;
+        buffer[CRC_OFFSET + 1] = 0;
+        buffer[CRC_OFFSET + 2] = 0;
+        buffer[CRC_OFFSET + 3] = 0;
+        let mut digest = CASTAGNOLI.digest();
+        digest.update(&buffer);
+
+        let mut buffer = Vec::new();
+        let _ = buf_reader
+            .by_ref()
+            .take(header.raw_identifier_length() as u64)
+            .read_to_end(&mut buffer)?;
+        digest.update(&buffer);
+        let identifier = SourceIdentifier::try_from(buffer)?;
+        let extra_headers: String;
+        let mut json_reader = buf_reader
+            .by_ref()
+            .take(header.raw_extra_headers_length() as u64);
+        let mut buffer = Vec::new();
+        let _ = json_reader.read_to_end(&mut buffer)?;
+        digest.update(&buffer);
+        if header.raw_extra_headers_length() > 2 {
+            extra_headers = String::from_utf8(buffer)?;
+        } else {
+            extra_headers = String::from("{}");
+        }
+        let expected_data_length = match header.encoding {
+            DataEncoding::INT16 => 2 * header.num_samples,
+            DataEncoding::INT32 => 4 * header.num_samples,
+            DataEncoding::FLOAT32 => 4 * header.num_samples,
+            DataEncoding::FLOAT64 => 8 * header.num_samples,
+            _ => header.raw_data_length(),
+        };
+        if header.raw_data_length() != expected_data_length {
+            return Err(MSeedError::DataLength(
+                expected_data_length,
+                header.num_samples,
+                header.encoding.value(),
+                header.raw_data_length(),
+            ));
+        }
+
+        let mut encoded_data = Vec::new();
+        let _ = buf_reader
+            .by_ref()
+            .take(header.raw_data_length() as u64)
+            .read_to_end(&mut encoded_data)?;
+        digest.update(&encoded_data);
+        let crc_calc = digest.finalize();
+        if crc_calc != header.crc {
+            return Err(MSeedError::CrcInvalid(crc_calc, header.crc));
+        }
+        let encoded_data = EncodedTimeseries::Raw(encoded_data);
+        header.num_samples = encoded_data.reconcile_num_samples(header.num_samples);
+        Ok(UnparsedMSeed3Record {
+            header,
+            identifier,
+            extra_headers,
+            encoded_data,
+        })
+    }
+}
+
+pub fn parse_headers(raw_rec: UnparsedMSeed3Record) -> Result<MSeed3Record, MSeedError> {
+    Ok(MSeed3Record {
+        header: raw_rec.header,
+        identifier: raw_rec.identifier,
+        encoded_data: raw_rec.encoded_data,
+        extra_headers: ExtraHeaders::from_str(&raw_rec.extra_headers)?,
+    })
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MSeed3Record {
     pub header: MSeed3Header,
     pub identifier: SourceIdentifier,
@@ -113,75 +207,10 @@ impl MSeed3Record {
         )
     }
 
+
     /// Read a single record record from the BufRead
     pub fn from_reader<R: BufRead>(buf_reader: &mut R) -> Result<MSeed3Record, MSeedError> {
-        let mut buffer = [0; FIXED_HEADER_SIZE];
-        let _ = buf_reader
-            .by_ref()
-            .take(FIXED_HEADER_SIZE as u64)
-            .read(&mut buffer)?;
-        let mut header = MSeed3Header::try_from(&buffer)?;
-        // set crc field to zero for crc calculation, header has already read value
-        buffer[CRC_OFFSET] = 0;
-        buffer[CRC_OFFSET + 1] = 0;
-        buffer[CRC_OFFSET + 2] = 0;
-        buffer[CRC_OFFSET + 3] = 0;
-        let mut digest = CASTAGNOLI.digest();
-        digest.update(&buffer);
-
-        let mut buffer = Vec::new();
-        let _ = buf_reader
-            .by_ref()
-            .take(header.raw_identifier_length() as u64)
-            .read_to_end(&mut buffer)?;
-        digest.update(&buffer);
-        let identifier = SourceIdentifier::try_from(buffer)?;
-        let extra_headers_str: String;
-        let mut json_reader = buf_reader
-            .by_ref()
-            .take(header.raw_extra_headers_length() as u64);
-        let mut buffer = Vec::new();
-        let _ = json_reader.read_to_end(&mut buffer)?;
-        digest.update(&buffer);
-        if header.raw_extra_headers_length() > 2 {
-            extra_headers_str = String::from_utf8(buffer)?;
-        } else {
-            extra_headers_str = String::from("{}");
-        }
-        let expected_data_length = match header.encoding {
-            DataEncoding::INT16 => 2 * header.num_samples,
-            DataEncoding::INT32 => 4 * header.num_samples,
-            DataEncoding::FLOAT32 => 4 * header.num_samples,
-            DataEncoding::FLOAT64 => 8 * header.num_samples,
-            _ => header.raw_data_length(),
-        };
-        if header.raw_data_length() != expected_data_length {
-            return Err(MSeedError::DataLength(
-                expected_data_length,
-                header.num_samples,
-                header.encoding.value(),
-                header.raw_data_length(),
-            ));
-        }
-
-        let mut encoded_data = Vec::new();
-        let _ = buf_reader
-            .by_ref()
-            .take(header.raw_data_length() as u64)
-            .read_to_end(&mut encoded_data)?;
-        digest.update(&encoded_data);
-        let crc_calc = digest.finalize();
-        if crc_calc != header.crc {
-            return Err(MSeedError::CrcInvalid(crc_calc, header.crc));
-        }
-        let encoded_data = EncodedTimeseries::Raw(encoded_data);
-        header.num_samples = encoded_data.reconcile_num_samples(header.num_samples);
-        Ok(MSeed3Record {
-            header,
-            identifier,
-            extra_headers: ExtraHeaders::from(extra_headers_str),
-            encoded_data,
-        })
+        parse_headers(UnparsedMSeed3Record::from_reader(buf_reader)?)
     }
 
     /// Writes the record, after calculating the CRC. The returned tuple contains the number
