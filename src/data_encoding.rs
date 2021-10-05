@@ -1,3 +1,4 @@
+use serde::{Serialize, Deserialize};
 use std::fmt;
 use std::fmt::Formatter;
 
@@ -13,7 +14,7 @@ use std::fmt::Formatter;
 /// 19  Steim-3 integer compression, big endian (not in common use in archives)
 /// 100 Opaque data - only for use in special scenarios, not intended for archiving
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum DataEncoding {
     TEXT,
     INT16,

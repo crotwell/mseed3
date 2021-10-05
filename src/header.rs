@@ -1,6 +1,7 @@
 use byteorder::{LittleEndian, WriteBytesExt};
 use chrono::prelude::*;
 use chrono::Utc;
+use serde::{Serialize, Deserialize};
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::io::prelude::*;
@@ -16,7 +17,7 @@ pub const FIXED_HEADER_SIZE: usize = 40;
 pub const CRC_OFFSET: usize = 28;
 
 /// The fixed section of the header. Does not contain the identifier, extra headers, or timeseries data.
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MSeed3Header {
     pub record_indicator: [u8; 2],
     pub format_version: u8,

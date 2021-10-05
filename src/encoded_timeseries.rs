@@ -1,4 +1,5 @@
 use byteorder::{LittleEndian, WriteBytesExt};
+use serde::{Serialize, Deserialize};
 use std::fmt;
 use std::fmt::Formatter;
 use std::io::prelude::*;
@@ -6,7 +7,7 @@ use std::io::BufWriter;
 
 use crate::mseed_error::MSeedError;
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum EncodedTimeseries {
     Raw(Vec<u8>),
     Int16(Vec<i16>),
