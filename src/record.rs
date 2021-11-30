@@ -2,22 +2,23 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use chrono::prelude::*;
 use chrono::Utc;
 use crc::{Crc, CRC_32_ISCSI};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use serde_json::map::Map;
+use serde_json::Value;
 use std::fmt;
 use std::io::prelude::*;
 use std::io::BufWriter;
-use std::str::FromStr;
-
 
 use crate::data_encoding::DataEncoding;
 use crate::encoded_timeseries::EncodedTimeseries;
-use crate::extra_headers::ExtraHeaders;
 use crate::fdsn_source_identifier::{FdsnSourceIdentifier, SourceIdentifier};
 use crate::header::{MSeed3Header, CRC_OFFSET, FIXED_HEADER_SIZE};
 use crate::mseed_error::MSeedError;
 use std::convert::TryFrom;
 
 pub const CASTAGNOLI: Crc<u32> = Crc::<u32>::new(&CRC_32_ISCSI);
+pub const FDSN_EXTRA_HEADERS: &str = "FDSN";
 
 /// Miniseed3 record, consisting of a fixed header, a string identifier, json extra headers and
 /// encoded timeseries points.
@@ -35,7 +36,6 @@ pub struct UnparsedMSeed3Record {
 }
 
 impl UnparsedMSeed3Record {
-
     /// Read a single record record from the BufRead
     pub fn from_reader<R: BufRead>(buf_reader: &mut R) -> Result<UnparsedMSeed3Record, MSeedError> {
         let mut buffer = [0; FIXED_HEADER_SIZE];
@@ -109,11 +109,44 @@ impl UnparsedMSeed3Record {
 }
 
 pub fn parse_headers(raw_rec: UnparsedMSeed3Record) -> Result<MSeed3Record, MSeedError> {
+    let v: Value = serde_json::from_str(&raw_rec.extra_headers)?;
+    let eh_json = match v {
+        Value::Object(map) => Ok(map),
+        _ => Err(MSeedError::ExtraHeaderNotObject(v)),
+    };
     Ok(MSeed3Record {
         header: raw_rec.header,
         identifier: raw_rec.identifier,
         encoded_data: raw_rec.encoded_data,
-        extra_headers: ExtraHeaders::from_str(&raw_rec.extra_headers)?,
+        extra_headers: eh_json?,
+    })
+}
+
+pub fn pack_headers(rec: MSeed3Record) -> Result<UnparsedMSeed3Record, MSeedError> {
+    let identifier = rec.identifier;
+    let eh_str = serde_json::Value::Object(rec.extra_headers).to_string();
+    let eh_bytes = eh_str.as_bytes();
+    let extra_headers_length;
+    if eh_bytes.len() > 2 {
+        extra_headers_length = eh_bytes.len() as u16;
+    } else {
+        extra_headers_length = 0;
+    }
+    let mut header = rec.header.clone();
+    header.crc = 0;
+    let data_length = rec.encoded_data.byte_len();
+    let num_samples = rec.encoded_data.reconcile_num_samples(header.num_samples);
+    header.recalculated_lengths(
+        identifier.to_string().len() as u8,
+        extra_headers_length,
+        data_length,
+        num_samples,
+    );
+    Ok(UnparsedMSeed3Record {
+        header,
+        identifier,
+        encoded_data: rec.encoded_data,
+        extra_headers: eh_str,
     })
 }
 
@@ -121,7 +154,7 @@ pub fn parse_headers(raw_rec: UnparsedMSeed3Record) -> Result<MSeed3Record, MSee
 pub struct MSeed3Record {
     pub header: MSeed3Header,
     pub identifier: SourceIdentifier,
-    pub extra_headers: ExtraHeaders,
+    pub extra_headers: Map<String, Value>,
     pub encoded_data: EncodedTimeseries,
 }
 
@@ -139,14 +172,14 @@ impl MSeed3Record {
     /// # use mseed3::FdsnSourceIdentifier;
     /// # fn main() -> Result<(), MSeedError> {
     /// use chrono::{DateTime, Utc};
-    /// use mseed3::{DataEncoding, EncodedTimeseries, ExtraHeaders, MSeedError, SourceIdentifier};
+    /// use mseed3::{DataEncoding, EncodedTimeseries, MSeedError, SourceIdentifier};
     /// let start = "2014-11-28T12:00:09Z".parse::<DateTime<Utc>>()?;
     /// let timeseries = vec![0, 1, -1, 5, 3, -5, 10, -1, 1, 0];
     /// let num_samples = timeseries.len();
     /// let encoded_data = EncodedTimeseries::Int32(timeseries);
     /// let header = mseed3::MSeed3Header::new(start, DataEncoding::INT32, 10.0, num_samples);
     /// let identifier = SourceIdentifier::from("FDSN:CO_BIRD_00_H_H_Z");
-    /// let extra_headers = ExtraHeaders::new();
+    /// let extra_headers = Map::new();
     /// let record = mseed3::MSeed3Record::new(header, identifier, extra_headers, encoded_data);
     /// # Ok(())
     /// # }
@@ -155,7 +188,7 @@ impl MSeed3Record {
     pub fn new(
         header: MSeed3Header,
         identifier: SourceIdentifier,
-        extra_headers: ExtraHeaders,
+        extra_headers: Option<Map<String, Value>>,
         encoded_data: EncodedTimeseries,
     ) -> MSeed3Record {
         let mut header = header;
@@ -167,6 +200,10 @@ impl MSeed3Record {
             encoded_data.byte_len(),
             encoded_data.reconcile_num_samples(header.num_samples),
         );
+        let extra_headers = match extra_headers {
+            Some(eh) => eh,
+            None => Map::new(),
+        };
 
         MSeed3Record {
             header,
@@ -187,7 +224,7 @@ impl MSeed3Record {
         MSeed3Record::new(
             header,
             SourceIdentifier::Fdsn(FdsnSourceIdentifier::create_fake_channel()),
-            ExtraHeaders::new(),
+            None,
             EncodedTimeseries::Float32(data),
         )
     }
@@ -202,11 +239,10 @@ impl MSeed3Record {
         MSeed3Record::new(
             header,
             SourceIdentifier::Fdsn(FdsnSourceIdentifier::create_fake_channel()),
-            ExtraHeaders::new(),
+            None,
             EncodedTimeseries::Int32(data),
         )
     }
-
 
     /// Read a single record record from the BufRead
     pub fn from_reader<R: BufRead>(buf_reader: &mut R) -> Result<MSeed3Record, MSeedError> {
@@ -241,7 +277,7 @@ impl MSeed3Record {
     /// This does recalculate the identifier length, extra headers length and data length headers.
     /// The number of samples is sanity checked against the data, but trusts the header in cases
     /// of compressed or opaque data.
-    pub fn write_to_wocrc<W>(&mut self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
+    pub fn write_to_wocrc<W>(&self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
     where
         W: std::io::Write,
     {
@@ -252,7 +288,7 @@ impl MSeed3Record {
             .encoded_data
             .reconcile_num_samples(self.header.num_samples);
 
-        let eh_str = self.extra_headers.to_string();
+        let eh_str = serde_json::Value::Object(self.extra_headers.clone()).to_string();
         let eh_bytes = eh_str.as_bytes();
         let extra_headers_length;
         if eh_bytes.len() > 2 {
@@ -260,17 +296,19 @@ impl MSeed3Record {
         } else {
             extra_headers_length = 0;
         }
-        self.header.recalculated_lengths(
+        let mut mod_header = self.header.clone();
+        mod_header.recalculated_lengths(
             identifier_length,
             extra_headers_length,
             data_length,
             num_samples,
         );
-        self.header.write_to(buf)?;
+        mod_header.write_to(buf)?;
         buf.write_all(&id_bytes)?;
         if eh_bytes.len() > 2 {
             // don't write bytes for empty object, e.g. `{}`
             buf.write_all(&eh_bytes)?;
+            println!("write eh bytes: {}", &eh_str);
         }
         self.encoded_data.write_to(buf)?;
         buf.flush()?;
@@ -279,6 +317,31 @@ impl MSeed3Record {
 
     pub fn get_record_size(&self) -> u32 {
         self.header.get_record_size()
+    }
+
+    pub fn get_fdsn_headers(&self) -> Option<&Map<String, Value>> {
+        match &self.extra_headers[FDSN_EXTRA_HEADERS] {
+            Value::Object(map) => Some(map),
+            _ => None,
+        }
+    }
+
+    pub fn mut_fdsn_headers(&mut self) -> &mut Map<String, Value> {
+        self.create_fdsn_headers();
+        let fdsn = self.extra_headers.get_mut(FDSN_EXTRA_HEADERS).unwrap();
+        match fdsn {
+            Value::Object(map) => map,
+            _ => panic!("fdsn extra headers are not map"),
+        }
+    }
+    pub fn create_fdsn_headers(&mut self) -> () {
+        match &self.extra_headers[FDSN_EXTRA_HEADERS] {
+            Value::Object(_map) => (),
+            _ => {
+                self.extra_headers[FDSN_EXTRA_HEADERS] = json!({});
+                ()
+            }
+        }
     }
 }
 
@@ -304,7 +367,7 @@ mod tests {
         let identifier_length = identifier_bytes.len() as u8;
         let identifier = SourceIdentifier::try_from(identifier_bytes)?;
         let extra_headers_length = 0;
-        let extra_headers = ExtraHeaders::new();
+        let extra_headers = Map::new();
         let dummy_data = vec![0, -1, 2, -3, 4, -5];
         let data_length = (dummy_data.len() as u32 * 4) as u32;
         let num_samples = dummy_data.len() as u32;
@@ -316,7 +379,7 @@ mod tests {
         );
         head.encoding = DataEncoding::INT32;
         let encoded_data = EncodedTimeseries::Int32(dummy_data);
-        let mut rec = MSeed3Record::new(head, identifier, extra_headers, encoded_data);
+        let mut rec = MSeed3Record::new(head, identifier, None, encoded_data);
         let mut out = Vec::new();
         let bytes_written: u32;
         let crc_written: u32;

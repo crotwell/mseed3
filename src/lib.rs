@@ -13,14 +13,14 @@
 //! # use std::io::Write;
 //! # fn main() -> Result<(), MSeedError> {
 //! # use chrono::{DateTime, Utc};
-//! # use mseed3::{DataEncoding, EncodedTimeseries, ExtraHeaders, MSeedError, SourceIdentifier};
+//! # use mseed3::{DataEncoding, EncodedTimeseries, MSeedError, SourceIdentifier};
 //! let start = "2014-11-28T12:00:09Z".parse::<DateTime<Utc>>()?;
 //! let timeseries = vec![0, 1, -1, 5, 3, -5, 10, -1, 1, 0];
 //! let num_samples = timeseries.len();
 //! let encoded_data = EncodedTimeseries::Int32(timeseries);
 //! let header = mseed3::MSeed3Header::new(start, DataEncoding::INT32, 10.0, num_samples);
 //! let identifier = SourceIdentifier::from("FDSN:CO_BIRD_00_H_H_Z");
-//! let extra_headers = ExtraHeaders::new();
+//! let extra_headers = None;
 //! let record = mseed3::MSeed3Record::new(header, identifier, extra_headers, encoded_data);
 //! # Ok(())
 //! # }
@@ -34,14 +34,14 @@
 //! # use std::io::Write;
 //! # fn main() -> Result<(), MSeedError> {
 //! # use chrono::{DateTime, Utc};
-//! # use mseed3::{DataEncoding, EncodedTimeseries, ExtraHeaders, MSeedError, SourceIdentifier};
+//! # use mseed3::{DataEncoding, EncodedTimeseries, MSeedError, SourceIdentifier};
 //! # let start = "2014-11-28T12:00:09Z".parse::<DateTime<Utc>>()?;
 //! # let timeseries = vec![0, 1, -1, 5, 3, -5, 10, -1, 1, 0];
 //! # let num_samples = timeseries.len();
 //! # let encoded_data = EncodedTimeseries::Int32(timeseries);
 //! # let header = mseed3::MSeed3Header::new(start, DataEncoding::INT32, 10.0, num_samples);
 //! # let identifier = SourceIdentifier::from("FDSN:CO_BIRD_00_H_H_Z");
-//! # let extra_headers = ExtraHeaders::new();
+//! # let extra_headers = None;
 //! # let mut record = mseed3::MSeed3Record::new(header, identifier, extra_headers, encoded_data);
 //! println!("{}", record);
 //! # Ok(())
@@ -65,14 +65,14 @@
 //! # use std::io::Write;
 //! # fn main() -> Result<(), MSeedError> {
 //! # use chrono::{DateTime, Utc};
-//! # use mseed3::{DataEncoding, EncodedTimeseries, ExtraHeaders, MSeedError, SourceIdentifier};
+//! # use mseed3::{DataEncoding, EncodedTimeseries, MSeedError, SourceIdentifier};
 //! # let start = "2014-11-28T12:00:09Z".parse::<DateTime<Utc>>()?;
 //! # let timeseries = vec![0, 1, -1, 5, 3, -5, 10, -1, 1, 0];
 //! # let num_samples = timeseries.len();
 //! # let encoded_data = EncodedTimeseries::Int32(timeseries);
 //! # let header = mseed3::MSeed3Header::new(start, DataEncoding::INT32, 10.0, num_samples);
 //! # let identifier = SourceIdentifier::from("FDSN:CO_BIRD_00_H_H_Z");
-//! # let extra_headers = ExtraHeaders::new();
+//! # let extra_headers = None;
 //! # let mut record = mseed3::MSeed3Record::new(header, identifier, extra_headers, encoded_data);
 //!
 //!     let outfile = std::fs::File::create("simple.ms3")?;
@@ -89,14 +89,14 @@
 //! # use std::io::Write;
 //! # fn main() -> Result<(), MSeedError> {
 //! # use chrono::{DateTime, Utc};
-//! # use mseed3::{DataEncoding, EncodedTimeseries, ExtraHeaders, MSeedError, SourceIdentifier};
+//! # use mseed3::{DataEncoding, EncodedTimeseries, MSeedError, SourceIdentifier};
 //! # let start = "2014-11-28T12:00:09Z".parse::<DateTime<Utc>>()?;
 //! # let timeseries = vec![0, 1, -1, 5, 3, -5, 10, -1, 1, 0];
 //! # let num_samples = timeseries.len();
 //! # let encoded_data = EncodedTimeseries::Int32(timeseries);
 //! # let header = mseed3::MSeed3Header::new(start, DataEncoding::INT32, 10.0, num_samples);
 //! # let identifier = SourceIdentifier::from("FDSN:CO_BIRD_00_H_H_Z");
-//! # let extra_headers = ExtraHeaders::new();
+//! # let extra_headers = None;
 //! # let mut record = mseed3::MSeed3Record::new(header, identifier, extra_headers, encoded_data);
 //!
 //!    # let outfile = std::fs::File::create("simple.ms3")?;
@@ -130,7 +130,6 @@
 
 mod data_encoding;
 mod encoded_timeseries;
-mod extra_headers;
 mod fdsn_source_identifier;
 mod header;
 mod mseed_error;
@@ -142,11 +141,12 @@ use std::io::BufRead;
 
 pub use self::data_encoding::DataEncoding;
 pub use self::encoded_timeseries::EncodedTimeseries;
-pub use self::extra_headers::{ExtraHeaders, FDSN_EXTRA_HEADERS};
 pub use self::fdsn_source_identifier::{FdsnSourceIdentifier, SourceIdentifier};
 pub use self::header::{MSeed3Header, FIXED_HEADER_SIZE};
 pub use self::mseed_error::MSeedError;
-pub use self::record::{MSeed3Record, CASTAGNOLI};
+pub use self::record::{
+    pack_headers, MSeed3Record, UnparsedMSeed3Record, CASTAGNOLI, FDSN_EXTRA_HEADERS,
+};
 pub use self::steim1::{decode, encode};
 pub use self::steim_frame_block::{SteimFrame, SteimFrameBlock};
 
