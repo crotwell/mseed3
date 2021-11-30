@@ -1,6 +1,6 @@
 use crate::mseed_error::MSeedError;
 use crate::steim_frame_block::{SteimFrame, SteimFrameBlock};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::convert::TryFrom;
 

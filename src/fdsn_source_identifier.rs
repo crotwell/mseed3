@@ -1,8 +1,8 @@
 use crate::MSeedError;
 use lazy_static::lazy_static;
 use regex::{Captures, Regex};
-use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use serde::de::{self, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::TryFrom;
 use std::fmt;
 
@@ -82,7 +82,6 @@ impl fmt::Display for SourceIdentifier {
 }
 
 impl Serialize for SourceIdentifier {
-
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -93,7 +92,6 @@ impl Serialize for SourceIdentifier {
         }
     }
 }
-
 
 /// An FDSN Source Identifier string parsed into its component parts
 /// See the specification at <http://docs.fdsn.org/projects/source-identifiers/en/v1.0/index.html>
@@ -187,7 +185,6 @@ fn capture_named(captures: &Captures, name: &str, id: &str) -> Result<String, MS
     }
 }
 
-
 struct SourceIdentifierVisitor;
 
 impl<'de> Visitor<'de> for SourceIdentifierVisitor {
@@ -209,7 +206,9 @@ impl<'de> Deserialize<'de> for SourceIdentifier {
     where
         D: Deserializer<'de>,
     {
-        Ok(SourceIdentifier::from(deserializer.deserialize_str(SourceIdentifierVisitor)?))
+        Ok(SourceIdentifier::from(
+            deserializer.deserialize_str(SourceIdentifierVisitor)?,
+        ))
     }
 }
 

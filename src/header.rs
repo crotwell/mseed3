@@ -1,7 +1,7 @@
 use byteorder::{LittleEndian, WriteBytesExt};
 use chrono::prelude::*;
 use chrono::Utc;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::io::prelude::*;

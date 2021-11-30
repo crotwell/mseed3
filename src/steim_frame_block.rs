@@ -1,13 +1,13 @@
 use crate::MSeedError;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::io::prelude::*;
 
 /**
  * This represents a single Steim compression frame.  It stores values
  * as an int array and keeps track of it's current position in the frame.
  */
- #[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SteimFrame {
     nibbles: u32,
     pub(crate) words: [u32; 15],
@@ -42,7 +42,7 @@ impl SteimFrame {
  * @author Robert Casey (IRIS DMC)
  * @version 12/10/2001
  */
- #[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SteimFrameBlock {
     pub num_samples: usize,           // number of samples represented
     pub steim_version: usize,         // Steim version number

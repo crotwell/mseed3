@@ -1,5 +1,5 @@
 use byteorder::{LittleEndian, WriteBytesExt};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::Formatter;
 use std::io::prelude::*;
