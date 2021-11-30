@@ -73,7 +73,7 @@ pub fn decode_with_bias(b: &[u8], num_samples: u32) -> Result<Vec<i32>, MSeedErr
             end = *ts_itr.next().unwrap(); // X(n) is byte 2 for frame 0
         }
         for s in ts_itr {
-            last_value = last_value + s;
+            last_value += s;
             samples.push(last_value)
         }
     } // end for each frame...
@@ -86,7 +86,7 @@ pub fn decode_with_bias(b: &[u8], num_samples: u32) -> Result<Vec<i32>, MSeedErr
     }
     assert_eq!(samples[0], start);
     assert_eq!(samples[samples.len() - 1], end);
-    return Ok(samples);
+    Ok(samples)
 }
 
 /**
@@ -96,28 +96,28 @@ pub fn decode_with_bias(b: &[u8], num_samples: u32) -> Result<Vec<i32>, MSeedErr
  */
 pub fn decode(b: &[u8], num_samples: u32) -> Result<Vec<i32>, MSeedError> {
     // zero-bias version of decode
-    return decode_with_bias(b, num_samples);
+    decode_with_bias(b, num_samples)
 }
 
 /**
-	* Encode the array of integer values into a Steim 1 * compressed byte frame block.
-	* This algorithm will not create a byte block any greater * than 63 64-byte frames.
-	* <b>frames</b> represents the maximum number of frames to be written.
-	* This number should be determined from the desired logical record length
-	* <i>minus</i> the data offset from the record header (modulo 64)
-	* If <b>samples</b> is exhausted before all frames are filled, the remaining frames
-	* will be nulls.
-	* @param samples the data points represented as signed integers
-	* @param frames the number of Steim frames to use in the encoding, 0 for unlimited
-	* @param bias offset for use as a constant for the first difference, otherwise
-	* set to 0
-	* @return SteimFrameBlock containing encoded byte array
-	* @throws SteimException samples array is zero size
-	* @throws SteimException number of frames is not a positive value
-	* @throws SteimException cannot encode more than 63 frames
-	*/
+* Encode the array of integer values into a Steim 1 * compressed byte frame block.
+* This algorithm will not create a byte block any greater * than 63 64-byte frames.
+* <b>frames</b> represents the maximum number of frames to be written.
+* This number should be determined from the desired logical record length
+* <i>minus</i> the data offset from the record header (modulo 64)
+* If <b>samples</b> is exhausted before all frames are filled, the remaining frames
+* will be nulls.
+* @param samples the data points represented as signed integers
+* @param frames the number of Steim frames to use in the encoding, 0 for unlimited
+* @param bias offset for use as a constant for the first difference, otherwise
+* set to 0
+* @return SteimFrameBlock containing encoded byte array
+* @throws SteimException samples array is zero size
+* @throws SteimException number of frames is not a positive value
+* @throws SteimException cannot encode more than 63 frames
+*/
 pub fn encode(samples: &[i32], frames: usize) -> Result<SteimFrameBlock, MSeedError> {
-    if samples.len() == 0 {
+    if samples.is_empty() {
         return Err(MSeedError::Compression(String::from(
             "samples array is zero size",
         )));
@@ -182,7 +182,7 @@ pub fn encode(samples: &[i32], frames: usize) -> Result<SteimFrameBlock, MSeedEr
     frame_block.num_samples = num_samples;
     assert_ne!(frame_block.steim_frame.len(), 0);
     frame_block.reverse_integration_constant(samples[num_samples - 1]);
-    return Ok(frame_block);
+    Ok(frame_block)
 }
 
 /**
@@ -252,7 +252,7 @@ fn extract_samples(bytes: &[u8], offset: usize) -> Result<Vec<i32>, MSeedError> 
             }
         }
     }
-    return Ok(temp);
+    Ok(temp)
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -292,7 +292,7 @@ where
             match &self.diff_iter.next() {
                 Some(v) => self.prev.push_back(*v),
                 None => {
-                    if self.prev.len() > 0 {
+                    if !self.prev.is_empty() {
                         break;
                     } else {
                         return None;
@@ -330,7 +330,7 @@ where
                 self.prev.pop_front()? as i16,
                 self.prev.pop_front()? as i16,
             ));
-        } else if self.prev.len() != 0 {
+        } else if !self.prev.is_empty() {
             // single 4-byte value
             return Some(Steim1Word::One(self.prev.pop_front()?));
         }
@@ -376,20 +376,20 @@ impl Steim1Word {
             Steim1Word::One(a) => u32::from_be_bytes(a.to_be_bytes()),
         };
         let nibble = match self {
-            Steim1Word::Four(_a, _b, _c, _d) => 1 as u32,
-            Steim1Word::Three(_a, _b, _c) => 1 as u32,
-            Steim1Word::Two(_a, _b) => 2 as u32,
-            Steim1Word::One(_a) => 3 as u32,
+            Steim1Word::Four(_a, _b, _c, _d) => 1_u32,
+            Steim1Word::Three(_a, _b, _c) => 1_u32,
+            Steim1Word::Two(_a, _b) => 2_u32,
+            Steim1Word::One(_a) => 3_u32,
         };
         frame.set_word(word, nibble, frame_idx);
         frame_idx + 1
     }
     pub fn num_samples(&self) -> usize {
         match self {
-            Steim1Word::Four(_a, _b, _c, _d) => 4 as usize,
-            Steim1Word::Three(_a, _b, _c) => 3 as usize,
-            Steim1Word::Two(_a, _b) => 2 as usize,
-            Steim1Word::One(_a) => 1 as usize,
+            Steim1Word::Four(_a, _b, _c, _d) => 4_usize,
+            Steim1Word::Three(_a, _b, _c) => 3_usize,
+            Steim1Word::Two(_a, _b) => 2_usize,
+            Steim1Word::One(_a) => 1_usize,
         }
     }
 }

@@ -85,8 +85,8 @@ impl MSeed3Header {
     ) -> MSeed3Header {
         let mut header = MSeed3Header {
             record_indicator: MSeed3Header::REC_IND,
-            format_version: 3 as u8,
-            flags: 0 as u8,
+            format_version: 3_u8,
+            flags: 0_u8,
             nanosecond: 0,
             year: 2000,
             day_of_year: 0,
@@ -264,28 +264,24 @@ impl fmt::Display for MSeed3Header {
 
         let encode_name = self.encoding.to_string();
 
-        write!(
+        writeln!(
             f,
-            "version {}, {} bytes (format: {})\n",
+            "version {}, {} bytes (format: {})",
             self.publication_version,
             self.get_record_size(),
             self.format_version
         )?;
-        write!(f, "             start time: {}\n", self.get_start_as_iso())?;
-        write!(f, "      number of samples: {}\n", self.num_samples)?;
-        write!(f, "       sample rate (Hz): {}\n", self.sample_rate_period)?;
-        write!(
+        writeln!(f, "             start time: {}", self.get_start_as_iso())?;
+        writeln!(f, "      number of samples: {}", self.num_samples)?;
+        writeln!(f, "       sample rate (Hz): {}", self.sample_rate_period)?;
+        writeln!(f, "                  flags: [{:#010b}] 8 bits", self.flags)?;
+        writeln!(f, "                    CRC: {}", self.crc_hex_string())?;
+        writeln!(
             f,
-            "                  flags: [{:#010b}] 8 bits\n",
-            self.flags
-        )?;
-        write!(f, "                    CRC: {}\n", self.crc_hex_string())?;
-        write!(
-            f,
-            "    extra header length: {} bytes\n",
+            "    extra header length: {} bytes",
             self.extra_headers_length
         )?;
-        write!(f, "    data payload length: {} bytes\n", self.data_length)?;
+        writeln!(f, "    data payload length: {} bytes", self.data_length)?;
         write!(
             f,
             "       payload encoding: {encode_name} (val: {encoding})",

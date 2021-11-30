@@ -27,7 +27,13 @@ impl SteimFrame {
     pub fn set_word(&mut self, word: u32, nibble: u32, idx: usize) {
         self.words[idx] = word;
         assert!(idx < 16, "nubble idx must be 0..16, {}", idx);
-        self.nibbles = self.nibbles + (nibble << (30 - 2 * idx as u32))
+        self.nibbles += nibble << (30 - 2 * idx as u32)
+    }
+}
+
+impl Default for SteimFrame {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

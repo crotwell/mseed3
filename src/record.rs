@@ -307,7 +307,7 @@ impl MSeed3Record {
         buf.write_all(&id_bytes)?;
         if eh_bytes.len() > 2 {
             // don't write bytes for empty object, e.g. `{}`
-            buf.write_all(&eh_bytes)?;
+            buf.write_all(eh_bytes)?;
             println!("write eh bytes: {}", &eh_str);
         }
         self.encoded_data.write_to(buf)?;
@@ -334,13 +334,10 @@ impl MSeed3Record {
             _ => panic!("fdsn extra headers are not map"),
         }
     }
-    pub fn create_fdsn_headers(&mut self) -> () {
+    pub fn create_fdsn_headers(&mut self) {
         match &self.extra_headers[FDSN_EXTRA_HEADERS] {
             Value::Object(_map) => (),
-            _ => {
-                self.extra_headers[FDSN_EXTRA_HEADERS] = json!({});
-                ()
-            }
+            _ => self.extra_headers[FDSN_EXTRA_HEADERS] = json!({}),
         }
     }
 }

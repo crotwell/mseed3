@@ -56,7 +56,7 @@ impl From<String> for SourceIdentifier {
 
 impl From<&str> for SourceIdentifier {
     fn from(s: &str) -> Self {
-        let sid = FdsnSourceIdentifier::parse(&s);
+        let sid = FdsnSourceIdentifier::parse(s);
         match sid {
             Ok(fdsn) => SourceIdentifier::Fdsn(fdsn),
             Err(_) => SourceIdentifier::Raw(s.to_string()),
@@ -87,7 +87,7 @@ impl Serialize for SourceIdentifier {
         S: Serializer,
     {
         match self {
-            SourceIdentifier::Raw(s) => serializer.serialize_str(&s),
+            SourceIdentifier::Raw(s) => serializer.serialize_str(s),
             SourceIdentifier::Fdsn(fdsn) => serializer.serialize_str(&fdsn.to_string()),
         }
     }
