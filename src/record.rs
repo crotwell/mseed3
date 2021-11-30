@@ -367,7 +367,6 @@ mod tests {
         let identifier_length = identifier_bytes.len() as u8;
         let identifier = SourceIdentifier::try_from(identifier_bytes)?;
         let extra_headers_length = 0;
-        let extra_headers = Map::new();
         let dummy_data = vec![0, -1, 2, -3, 4, -5];
         let data_length = (dummy_data.len() as u32 * 4) as u32;
         let num_samples = dummy_data.len() as u32;
