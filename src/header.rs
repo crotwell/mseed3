@@ -335,10 +335,11 @@ mod tests {
     }
 
     fn get_dummy_header() -> [u8; 64] {
+        // hexdump -C -n 64 reference-sinusoid-int16.mseed3
         // 00000000  4d 53 03 04 00 00 00 00  dc 07 01 00 00 00 00 01  |MS..............|
-        // 00000010  00 00 00 00 00 00 f0 3f  f4 01 00 00 89 73 2b 64  |.......?.....s+d|
-        // 00000020  01 14 00 00 e8 03 00 00  58 46 44 53 4e 3a 58 58  |........XFDSN:XX|
-        // 00000030  5f 54 45 53 54 5f 5f 4c  5f 48 5f 5a 00 00 02 00  |_TEST__L_H_Z....|
+        // 00000010  00 00 00 00 00 00 f0 3f  90 01 00 00 d6 87 d2 04  |.......?........|
+        // 00000020  01 13 00 00 20 03 00 00  46 44 53 4e 3a 58 58 5f  |.... ...FDSN:XX_|
+        // 00000030  54 45 53 54 5f 5f 4c 5f  48 5f 5a 00 00 02 00 04  |TEST__L_H_Z.....|
 
         // XFDSN:XX_TEST__L_H_Z, version 1, 1060 bytes (format: 3)
         //  start time: 2012,001,00:00:00.000000
@@ -353,10 +354,10 @@ mod tests {
 
         let buf: [u8; 64] = [
             0x4d, 0x53, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00, 0xdc, 0x07, 0x01, 0x00, 0x00, 0x00,
-            0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f, 0xf4, 0x01, 0x00, 0x00,
-            0x89, 0x73, 0x2b, 0x64, 0x01, 0x14, 0x00, 0x00, 0xe8, 0x03, 0x00, 0x00, 0x58, 0x46,
-            0x44, 0x53, 0x4e, 0x3a, 0x58, 0x58, 0x5f, 0x54, 0x45, 0x53, 0x54, 0x5f, 0x5f, 0x4c,
-            0x5f, 0x48, 0x5f, 0x5a, 0x00, 0x00, 0x02, 0x00,
+            0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f, 0x90, 0x01, 0x00, 0x00,
+            0xd6, 0x87, 0xd2, 0x04, 0x01, 0x13, 0x00, 0x00, 0x20, 0x03, 0x00, 0x00, 0x46, 0x44,
+            0x53, 0x4e, 0x3a, 0x58, 0x58, 0x5f, 0x54, 0x45, 0x53, 0x54, 0x5f, 0x5f, 0x4c, 0x5f,
+            0x48, 0x5f, 0x5a, 0x00, 0x00, 0x02, 0x00, 0x04,
         ];
         buf
     }
@@ -378,15 +379,17 @@ mod tests {
         assert_eq!(head.encoding.value(), 1);
         // special check as clippy doesn't like float equals
         assert!((head.sample_rate_period - 1.0_f64).abs() < f64::EPSILON);
-        assert_eq!(head.num_samples, 500);
-        assert_eq!(head.crc, 0x642B7389);
+        assert_eq!(head.num_samples, 400);
+        assert_eq!(head.crc_hex_string(), "0x4D287D6");
+        assert_eq!(head.crc, 0x4D287D6);
         assert_eq!(head.publication_version, 1_u8);
         assert_eq!(
             head.identifier_length,
-            String::from("XFDSN:XX_TEST__L_H_Z").len() as u8
+            String::from("FDSN:XX_TEST__L_H_Z").len() as u8
         );
         assert_eq!(head.extra_headers_length, 0_u16);
-        assert_eq!(head.data_length, 1000);
+        assert_eq!(head.data_length, 2 * head.num_samples); // 16 bit ints
+        assert_eq!(head.data_length, 800);
         print!("{}", head);
     }
 
