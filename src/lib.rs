@@ -19,7 +19,7 @@
 //! let num_samples = timeseries.len();
 //! let encoded_data = EncodedTimeseries::Int32(timeseries);
 //! let header = mseed3::MSeed3Header::new(start, DataEncoding::INT32, 10.0, num_samples);
-//! let identifier = SourceIdentifier::from("FDSN:CO_BIRD_00_H_H_Z");
+//! let identifier = SourceIdentifier::from("FDSN:XX_BIRD_00_H_H_Z");
 //! let extra_headers = None;
 //! let record = mseed3::MSeed3Record::new(header, identifier, extra_headers, encoded_data);
 //! # Ok(())
@@ -40,7 +40,7 @@
 //! # let num_samples = timeseries.len();
 //! # let encoded_data = EncodedTimeseries::Int32(timeseries);
 //! # let header = mseed3::MSeed3Header::new(start, DataEncoding::INT32, 10.0, num_samples);
-//! # let identifier = SourceIdentifier::from("FDSN:CO_BIRD_00_H_H_Z");
+//! # let identifier = SourceIdentifier::from("FDSN:XX_BIRD_00_H_H_Z");
 //! # let extra_headers = None;
 //! # let mut record = mseed3::MSeed3Record::new(header, identifier, extra_headers, encoded_data);
 //! println!("{}", record);
@@ -49,7 +49,7 @@
 //! ```
 //! ```text
 //! Record:
-//!   FDSN:CO_BIRD_00_H_H_Z, version 0, 101 bytes (format: 3)
+//!   FDSN:XX_BIRD_00_H_H_Z, version 0, 101 bytes (format: 3)
 //!              start time: 2014-11-28T12:00:09.000000000Z
 //!       number of samples: 10
 //!        sample rate (Hz): 10
@@ -63,6 +63,7 @@
 //! ```
 //! # use mseed3::MSeedError;
 //! # use std::io::Write;
+//! # use std::fs::remove_file;
 //! # fn main() -> Result<(), MSeedError> {
 //! # use chrono::{DateTime, Utc};
 //! # use mseed3::{DataEncoding, EncodedTimeseries, MSeedError, SourceIdentifier};
@@ -71,7 +72,7 @@
 //! # let num_samples = timeseries.len();
 //! # let encoded_data = EncodedTimeseries::Int32(timeseries);
 //! # let header = mseed3::MSeed3Header::new(start, DataEncoding::INT32, 10.0, num_samples);
-//! # let identifier = SourceIdentifier::from("FDSN:CO_BIRD_00_H_H_Z");
+//! # let identifier = SourceIdentifier::from("FDSN:XX_BIRD_00_H_H_Z");
 //! # let extra_headers = None;
 //! # let mut record = mseed3::MSeed3Record::new(header, identifier, extra_headers, encoded_data);
 //!
@@ -79,7 +80,7 @@
 //!     let mut buf_writer = std::io::BufWriter::new(outfile);
 //!     record.write_to(&mut buf_writer)?; // writing a record mut's the header to fix crc, and the byte lengths
 //!     buf_writer.flush()?;
-//!
+//! # remove_file("simple.ms3");
 //! # Ok(())
 //! # }
 //! ```
@@ -87,6 +88,7 @@
 //! ```
 //! # use mseed3::MSeedError;
 //! # use std::io::Write;
+//! # use std::fs::remove_file;
 //! # fn main() -> Result<(), MSeedError> {
 //! # use chrono::{DateTime, Utc};
 //! # use mseed3::{DataEncoding, EncodedTimeseries, MSeedError, SourceIdentifier};
@@ -95,7 +97,7 @@
 //! # let num_samples = timeseries.len();
 //! # let encoded_data = EncodedTimeseries::Int32(timeseries);
 //! # let header = mseed3::MSeed3Header::new(start, DataEncoding::INT32, 10.0, num_samples);
-//! # let identifier = SourceIdentifier::from("FDSN:CO_BIRD_00_H_H_Z");
+//! # let identifier = SourceIdentifier::from("FDSN:XX_BIRD_00_H_H_Z");
 //! # let extra_headers = None;
 //! # let mut record = mseed3::MSeed3Record::new(header, identifier, extra_headers, encoded_data);
 //!
@@ -109,13 +111,13 @@
 //!    let records = mseed3::read_mseed3(&mut buf_reader)?;
 //!    let first_record = records.first().unwrap();
 //!    print!("Read back in: \n{}", first_record);
-//!
+//!    remove_file("simple.ms3");
 //! # Ok(())
 //! # }
 //! ```
 //! ```text
 //! Read back in:
-//!   FDSN:CO_BIRD_00_H_H_Z, version 0, 101 bytes (format: 3)
+//!   FDSN:XX_BIRD_00_H_H_Z, version 0, 101 bytes (format: 3)
 //!              start time: 2014-11-28T12:00:09.000000000Z
 //!       number of samples: 10
 //!        sample rate (Hz): 10
