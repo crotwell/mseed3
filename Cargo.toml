@@ -1,7 +1,7 @@
 [package]
 name = "mseed3"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 authors = ["Philip Crotwell"]
 license = "MIT OR Apache-2.0"
 description = "Miniseed3 file format"
