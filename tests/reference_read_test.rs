@@ -6,6 +6,7 @@ use std::fs;
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::{BufReader, Write};
+use std::path::Path;
 
 #[test]
 fn test_ref_data() -> Result<(), MSeedError> {
@@ -25,6 +26,7 @@ fn test_ref_data() -> Result<(), MSeedError> {
     for base_name in base_name_list {
         let ms3_filename = format!("tests/reference-data/reference-{}.xseed", base_name);
         println!("work on {}", ms3_filename);
+        assert!(Path::new(&ms3_filename).exists(), "Reference data missing, download from https://iris-edu.github.io/xseed-specification/reference-data/");
         let file = File::open(&ms3_filename)?;
         let mut buf_reader = BufReader::new(file);
         //let records: Vec<mseed3::MSeed3Record> =
