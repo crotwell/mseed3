@@ -21,7 +21,8 @@ pub const CASTAGNOLI: Crc<u32> = Crc::<u32>::new(&CRC_32_ISCSI);
 pub const FDSN_EXTRA_HEADERS: &str = "FDSN";
 
 /// Miniseed3 record, consisting of a fixed header, a string identifier, json extra headers and
-/// encoded timeseries points.
+/// encoded timeseries points. The Unparsed leaves the extra headers as a string, see
+/// MSeed3Record for a similar struct with extra headers parsed with serde to a Map.
 ///
 /// See the spec at
 /// <https://miniseed3.readthedocs.io> now or at
@@ -106,6 +107,69 @@ impl UnparsedMSeed3Record {
             encoded_data,
         })
     }
+
+    /// Writes the record, after calculating the CRC. The returned tuple contains the number
+    /// of bytes written and the CRC value.
+    /// This does recalculate the identifier length, extra headers length and data length headers.
+    /// The number of samples is sanity checked against the data, but trusts the header in cases
+    /// of compressed or opaque data.
+    pub fn write_to<W>(&self, buf: &mut BufWriter<W>) -> Result<(u32, u32), MSeedError>
+    where
+        W: std::io::Write,
+    {
+        let mut out = Vec::new();
+        {
+            let mut inner_buf = BufWriter::new(&mut out);
+            self.write_to_wocrc(&mut inner_buf)?;
+            inner_buf.flush()?;
+        }
+        let crc = CASTAGNOLI.checksum(&out);
+        buf.write_all(&out[0..CRC_OFFSET])?;
+        buf.write_u32::<LittleEndian>(crc)?;
+        buf.write_all(&out[(CRC_OFFSET + 4)..])?;
+        Ok((out.len() as u32, crc))
+    }
+
+    /// Writes the record to the given buffer with zero in place of the header CRC field.
+    /// This also recalculates the identifier length, extra headers length and data length headers.
+    /// The number of samples is sanity checked against the data, but trusts the header in cases
+    /// of compressed or opaque data.
+    pub fn write_to_wocrc<W>(&self, buf: &mut BufWriter<W>) -> Result<(), MSeedError>
+    where
+        W: std::io::Write,
+    {
+        let id_bytes = self.identifier.as_bytes();
+        let identifier_length = id_bytes.len() as u8;
+        let data_length = self.encoded_data.byte_len();
+        let num_samples = self
+            .encoded_data
+            .reconcile_num_samples(self.header.num_samples);
+
+        let eh_bytes = self.extra_headers.as_bytes();
+        let extra_headers_length;
+        if eh_bytes.len() > 2 {
+            extra_headers_length = eh_bytes.len() as u16;
+        } else {
+            extra_headers_length = 0;
+        }
+        let mut mod_header = self.header.clone();
+        mod_header.crc = 0;
+        mod_header.recalculated_lengths(
+            identifier_length,
+            extra_headers_length,
+            data_length,
+            num_samples,
+        );
+        mod_header.write_to(buf)?;
+        buf.write_all(&id_bytes)?;
+        if eh_bytes.len() > 2 {
+            // don't write bytes for empty object, e.g. `{}`
+            buf.write_all(eh_bytes)?;
+        }
+        self.encoded_data.write_to(buf)?;
+        buf.flush()?;
+        Ok(())
+    }
 }
 
 pub fn parse_headers(raw_rec: UnparsedMSeed3Record) -> Result<MSeed3Record, MSeedError> {
@@ -179,7 +243,7 @@ impl MSeed3Record {
     /// let encoded_data = EncodedTimeseries::Int32(timeseries);
     /// let header = mseed3::MSeed3Header::new(start, DataEncoding::INT32, 10.0, num_samples);
     /// let identifier = SourceIdentifier::from("FDSN:CO_BIRD_00_H_H_Z");
-    /// let extra_headers = Map::new();
+    /// let extra_headers = None;
     /// let record = mseed3::MSeed3Record::new(header, identifier, extra_headers, encoded_data);
     /// # Ok(())
     /// # }
@@ -254,11 +318,14 @@ impl MSeed3Record {
     /// This does recalculate the identifier length, extra headers length and data length headers.
     /// The number of samples is sanity checked against the data, but trusts the header in cases
     /// of compressed or opaque data.
-    pub fn write_to<W>(&mut self, buf: &mut BufWriter<W>) -> Result<(u32, u32), MSeedError>
+    ///
+    /// Note to self, maybe better to pack record to UnparsedMSeed3Record and then write that???
+    pub fn write_to<W>(&self, buf: &mut BufWriter<W>) -> Result<(u32, u32), MSeedError>
     where
         W: std::io::Write,
     {
-        self.header.crc = 0;
+        let mut header = self.header.clone();
+        header.crc = 0;
         let mut out = Vec::new();
         {
             let mut inner_buf = BufWriter::new(&mut out);
@@ -266,7 +333,6 @@ impl MSeed3Record {
             inner_buf.flush()?;
         }
         let crc = CASTAGNOLI.checksum(&out);
-        self.header.crc = crc;
         buf.write_all(&out[0..CRC_OFFSET])?;
         buf.write_u32::<LittleEndian>(crc)?;
         buf.write_all(&out[(CRC_OFFSET + 4)..])?;
@@ -389,7 +455,7 @@ mod tests {
         assert_eq!(rec.get_record_size(), out.len() as u32);
         assert_eq!(bytes_written, out.len() as u32);
         println!("crc is {:#0X}", crc_written);
-        assert_eq!(0xA31B99EC, crc_written);
+        assert_eq!(0xEB08F2A9, crc_written);
         Ok(())
     }
 

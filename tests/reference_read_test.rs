@@ -31,6 +31,14 @@ fn test_ref_data() -> Result<(), MSeedError> {
         //    mseed3::read_mseed3(&mut buf_reader)?;
         let json_filename = format!("tests/reference-data/reference-{}.json", base_name);
         let json: Value = read_ref_json(&json_filename)?;
+        let unparsed = mseed3::UnparsedMSeed3Record::from_reader(&mut buf_reader)?;
+        assert_eq!(
+            unparsed.header.crc_hex_string(),
+            json["CRC"].as_str().unwrap()
+        );
+        println!("unparsed extra headers: {}", unparsed.extra_headers);
+        let file = File::open(&ms3_filename)?;
+        let mut buf_reader = BufReader::new(file); // reopen to read as record
         let mut first: MSeed3Record = mseed3::MSeed3Record::from_reader(&mut buf_reader)?;
         assert_eq!(first.identifier.to_string(), json["SID"].as_str().unwrap());
         assert_eq!(
@@ -50,19 +58,27 @@ fn test_ref_data() -> Result<(), MSeedError> {
         assert_eq!(first.header.publication_version, json["PublicationVersion"]);
         assert_eq!(first.header.raw_extra_headers_length(), json["ExtraLength"]);
         assert_eq!(first.header.raw_data_length(), json["DataLength"]);
+        // use unparsed to check CRC as json keys are reordered with deserialize-serialize cycle
         let bytes_written: u32;
         let crc_written: u32;
         let mut out = Vec::new();
         {
             let mut buf_writer = BufWriter::new(&mut out);
-            let t = first.write_to(&mut buf_writer).unwrap();
+            let t = unparsed.write_to(&mut buf_writer).unwrap();
             bytes_written = t.0;
             crc_written = t.1;
             buf_writer.flush()?;
         }
-        assert_eq!(first.header.crc, crc_written);
+        assert_eq!(unparsed.header.crc, crc_written);
         assert_eq!(out.len() as u32, bytes_written);
-        assert_eq!(first.header.crc_hex_string(), json["CRC"].as_str().unwrap());
+        assert_eq!(
+            unparsed.header.crc_hex_string(),
+            json["CRC"].as_str().unwrap(),
+            "first: {}, written: {:#0X},  json: {}",
+            unparsed.header.crc_hex_string(),
+            crc_written,
+            json["CRC"].as_str().unwrap()
+        );
     }
     Ok(())
 }
