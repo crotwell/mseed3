@@ -219,8 +219,8 @@ mod tests {
     #[test]
     fn init_regex() -> Result<(), MSeedError> {
         let id = "FDSN:IU_ABCD_00_B_H_Z";
-        assert!(PARSE_FDSN_REGEX.is_match(&id));
-        let sid = FdsnSourceIdentifier::parse(&id)?;
+        assert!(PARSE_FDSN_REGEX.is_match(id));
+        let sid = FdsnSourceIdentifier::parse(id)?;
         assert_eq!("IU", sid.network);
         assert_eq!("ABCD", sid.station);
         assert_eq!("00", sid.location);

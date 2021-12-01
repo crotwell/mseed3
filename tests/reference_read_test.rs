@@ -39,7 +39,7 @@ fn test_ref_data() -> Result<(), MSeedError> {
         println!("unparsed extra headers: {}", unparsed.extra_headers);
         let file = File::open(&ms3_filename)?;
         let mut buf_reader = BufReader::new(file); // reopen to read as record
-        let mut first: MSeed3Record = mseed3::MSeed3Record::from_reader(&mut buf_reader)?;
+        let first: MSeed3Record = mseed3::MSeed3Record::from_reader(&mut buf_reader)?;
         assert_eq!(first.identifier.to_string(), json["SID"].as_str().unwrap());
         assert_eq!(
             first.header.get_record_size(),

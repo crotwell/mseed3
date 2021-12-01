@@ -330,7 +330,7 @@ mod tests {
         let buf: [u8; 8] = [0, 0, 0, 0, 0, 0, 0xf0, 0x3f];
         let mut header_bytes = &buf[0..8];
         let nanosecond = read_le_f64(&mut header_bytes);
-        assert_eq!(1.0 as f64, nanosecond);
+        assert_eq!(1.0_f64, nanosecond);
     }
 
     fn get_dummy_header() -> [u8; 64] {
@@ -375,15 +375,15 @@ mod tests {
         assert_eq!(head.minute, 0);
         assert_eq!(head.second, 0);
         assert_eq!(head.encoding.value(), 1);
-        assert_eq!(head.sample_rate_period, 1.0 as f64);
+        assert_eq!(head.sample_rate_period, 1.0_f64);
         assert_eq!(head.num_samples, 500);
         assert_eq!(head.crc, 0x642B7389);
-        assert_eq!(head.publication_version, 1 as u8);
+        assert_eq!(head.publication_version, 1_u8);
         assert_eq!(
             head.identifier_length,
             String::from("XFDSN:XX_TEST__L_H_Z").len() as u8
         );
-        assert_eq!(head.extra_headers_length, 0 as u16);
+        assert_eq!(head.extra_headers_length, 0_u16);
         assert_eq!(head.data_length, 1000);
         print!("{}", head);
     }

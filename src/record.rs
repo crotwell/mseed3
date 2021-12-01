@@ -441,7 +441,7 @@ mod tests {
         );
         head.encoding = DataEncoding::INT32;
         let encoded_data = EncodedTimeseries::Int32(dummy_data);
-        let mut rec = MSeed3Record::new(head, identifier, None, encoded_data);
+        let rec = MSeed3Record::new(head, identifier, None, encoded_data);
         let mut out = Vec::new();
         let bytes_written: u32;
         let crc_written: u32;

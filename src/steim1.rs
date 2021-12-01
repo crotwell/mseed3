@@ -440,7 +440,7 @@ mod tests {
             }
         }
         assert_eq!(found, data.len());
-        return Ok(());
+        Ok(())
     }
 
     #[test]
@@ -469,10 +469,8 @@ mod tests {
             frame_block.num_samples as u32,
         )?;
         assert_eq!(rt_data.len(), data.len());
-        let mut idx = 0;
-        for pair in rt_data.iter().zip(data.iter()) {
+        for (idx, pair) in rt_data.iter().zip(data.iter()).enumerate() {
             assert_eq!(pair.0, pair.1, " index {}", idx);
-            idx += 1;
         }
         Ok(())
     }

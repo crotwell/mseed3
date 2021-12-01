@@ -120,10 +120,10 @@ mod tests {
         frame_block.steim_frame.push(SteimFrame::new());
         frame_block.reverse_integration_constant(1);
         let enc_data = frame_block.get_encoded_data()?;
-        assert_eq!(enc_data[8], 0 as u8);
-        assert_eq!(enc_data[9], 0 as u8);
-        assert_eq!(enc_data[10], 0 as u8);
-        assert_eq!(enc_data[11], 1 as u8);
+        assert_eq!(enc_data[8], 0_u8);
+        assert_eq!(enc_data[9], 0_u8);
+        assert_eq!(enc_data[10], 0_u8);
+        assert_eq!(enc_data[11], 1_u8);
         Ok(())
     }
 }
