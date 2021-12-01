@@ -157,7 +157,7 @@ pub use self::steim_frame_block::{SteimFrame, SteimFrameBlock};
 /// ```
 /// # use mseed3::MSeedError;
 /// # fn main() -> Result<(), MSeedError> {
-/// # let my_mseed3_file = std::fs::File::open("tests/reference-data/reference-sinusoid-int32.xseed").unwrap();
+/// # let my_mseed3_file = std::fs::File::open("tests/reference-data/reference-sinusoid-int32.mseed3").unwrap();
 /// let mut buf_reader = std::io::BufReader::new(my_mseed3_file);
 /// let records = mseed3::read_mseed3(&mut buf_reader);
 /// # Ok(())
