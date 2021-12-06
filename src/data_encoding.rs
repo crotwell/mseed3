@@ -13,6 +13,8 @@ use std::fmt::Formatter;
 /// 11  Steim-2 integer compression, big endian byte order
 /// 19  Steim-3 integer compression, big endian (not in common use in archives)
 /// 100 Opaque data - only for use in special scenarios, not intended for archiving
+/// 104 32-bit complex (real and imaginary as 32-bit floats totaling 64 bits), little endian
+/// 105 64-bit complex (real and imaginary as 64-bit doubles totaling 128 bits), little endian
 /// ```
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum DataEncoding {
@@ -25,6 +27,8 @@ pub enum DataEncoding {
     STEIM2,
     STEIM3,
     OPAQUE,
+    COMPLEX32,
+    COMPLEX64,
     UNKNOWN(u8),
 }
 
@@ -41,6 +45,8 @@ impl DataEncoding {
             11 => DataEncoding::STEIM2,
             19 => DataEncoding::STEIM3,
             100 => DataEncoding::OPAQUE,
+            104 => DataEncoding::COMPLEX32,
+            105 => DataEncoding::COMPLEX64,
             _ => DataEncoding::UNKNOWN(val),
         }
     }
@@ -56,6 +62,8 @@ impl DataEncoding {
             DataEncoding::STEIM2 => 11,
             DataEncoding::STEIM3 => 19,
             DataEncoding::OPAQUE => 100,
+            DataEncoding::COMPLEX32 => 104,
+            DataEncoding::COMPLEX64 => 105,
             DataEncoding::UNKNOWN(val) => *val,
         }
     }
@@ -88,6 +96,12 @@ impl fmt::Display for DataEncoding {
                 f,
                 "Steim-3 integer compression, big endian (not in common use in archives)"
             ),
+            DataEncoding::COMPLEX32 => {
+                write!(f, "32-bit complex (real and imaginary as 32-bit floats totaling 64 bits), little endian")
+            },
+            DataEncoding::COMPLEX64 => {
+                write!(f, "64-bit complex (real and imaginary as 64-bit doubles totaling 128 bits), little endian")
+            },
             DataEncoding::OPAQUE => write!(
                 f,
                 "Opaque data - only for use in special scenarios, not intended for archiving"
