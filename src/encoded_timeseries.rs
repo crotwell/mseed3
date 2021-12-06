@@ -1,4 +1,5 @@
 use byteorder::{LittleEndian, WriteBytesExt};
+use num::Complex;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::Formatter;
@@ -18,6 +19,8 @@ pub enum EncodedTimeseries {
     Steim2(Vec<u8>),
     Steim3(Vec<u8>),
     Opaque(Vec<u8>),
+    Complex32(Vec<Complex<f32>>),
+    Complex64(Vec<Complex<f64>>),
 }
 
 impl EncodedTimeseries {
@@ -70,6 +73,20 @@ impl EncodedTimeseries {
                 buf.write_all(v)?;
                 Ok(())
             }
+            EncodedTimeseries::Complex32(v) => {
+                for &el in v {
+                    buf.write_f32::<LittleEndian>(el.re)?;
+                    buf.write_f32::<LittleEndian>(el.im)?;
+                }
+                Ok(())
+            }
+            EncodedTimeseries::Complex64(v) => {
+                for &el in v {
+                    buf.write_f64::<LittleEndian>(el.re)?;
+                    buf.write_f64::<LittleEndian>(el.im)?;
+                }
+                Ok(())
+            }
         }
     }
 
@@ -84,6 +101,8 @@ impl EncodedTimeseries {
             EncodedTimeseries::Steim2(v) => v.len() as u32,
             EncodedTimeseries::Steim3(v) => v.len() as u32,
             EncodedTimeseries::Opaque(v) => v.len() as u32,
+            EncodedTimeseries::Complex32(v) => 2 * 4 * v.len() as u32,
+            EncodedTimeseries::Complex64(v) => 2 * 8 * v.len() as u32,
         }
     }
     /// Reconciles the number of samples in the header with the size of the EncodedTimeseries.
@@ -101,6 +120,8 @@ impl EncodedTimeseries {
             EncodedTimeseries::Steim2(_) => header_num_sample,
             EncodedTimeseries::Steim3(_) => header_num_sample,
             EncodedTimeseries::Opaque(_) => header_num_sample,
+            EncodedTimeseries::Complex32(_) => header_num_sample,
+            EncodedTimeseries::Complex64(_) => header_num_sample,
         }
     }
 }
@@ -134,6 +155,12 @@ impl fmt::Display for EncodedTimeseries {
             }
             EncodedTimeseries::Opaque(v) => {
                 write!(f, "Opaque, {} bytes", v.len())
+            }
+            EncodedTimeseries::Complex32(v) => {
+                write!(f, "Complex32, {} samples", v.len())
+            }
+            EncodedTimeseries::Complex64(v) => {
+                write!(f, "Complex64, {} samples", v.len())
             }
         }
     }
