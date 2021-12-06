@@ -33,9 +33,9 @@ pub struct MSeed3Header {
     pub num_samples: u32,
     pub crc: u32,
     pub publication_version: u8,
-    identifier_length: u8,
-    extra_headers_length: u16,
-    data_length: u32,
+    pub identifier_length: u8,
+    pub extra_headers_length: u16,
+    pub data_length: u32,
 }
 
 impl MSeed3Header {
