@@ -98,10 +98,10 @@ impl fmt::Display for DataEncoding {
             ),
             DataEncoding::COMPLEX32 => {
                 write!(f, "32-bit complex (real and imaginary as 32-bit floats totaling 64 bits), little endian")
-            },
+            }
             DataEncoding::COMPLEX64 => {
                 write!(f, "64-bit complex (real and imaginary as 64-bit doubles totaling 128 bits), little endian")
-            },
+            }
             DataEncoding::OPAQUE => write!(
                 f,
                 "Opaque data - only for use in special scenarios, not intended for archiving"
