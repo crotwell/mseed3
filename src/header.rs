@@ -156,6 +156,20 @@ impl MSeed3Header {
         start.format("%Y-%m-%dT%H:%M:%S%.9fZ").to_string()
     }
 
+    pub fn get_sample_rate_hertz(&self) -> f64 {
+        if self.sample_rate_period < 0.0 {
+            return -1.0 / self.sample_rate_period;
+        }
+        return self.sample_rate_period;
+    }
+
+    pub fn get_sample_period_sec(&self) -> f64 {
+        if self.sample_rate_period > 0.0 {
+            return 1.0 / self.sample_rate_period;
+        }
+        return -1.0 * self.sample_rate_period;
+    }
+
     /// Format CRC as a hex string, like 0x106EAFA5
     pub fn crc_hex_string(&self) -> String {
         //        format!("{:#010X}", self.crc) // I like this style as shows it is a 32 bit number
