@@ -11,7 +11,6 @@ use std::path::Path;
 #[test]
 fn test_ref_data() -> Result<(), MSeedError> {
     let base_name_list = [
-        "ascii",
         "detectiononly",
         "sinusoid-FDSN-All",
         "sinusoid-FDSN-Other",
@@ -22,20 +21,25 @@ fn test_ref_data() -> Result<(), MSeedError> {
         "sinusoid-int16",
         "sinusoid-steim1",
         "sinusoid-steim2",
+        "text",
     ];
     for base_name in base_name_list {
         let ms3_filename = format!("tests/reference-data/reference-{}.mseed3", base_name);
         println!("work on {}", ms3_filename);
         assert!(
             Path::new(&ms3_filename).exists(),
-            "Reference data missing, download from https://github.com/iris-edu/miniSEED3"
+            "Reference data missing, download from https://github.com/FDSN/miniSEED3"
         );
         let file = File::open(&ms3_filename)?;
         let mut buf_reader = BufReader::new(file);
         //let records: Vec<mseed3::MSeed3Record> =
         //    mseed3::read_mseed3(&mut buf_reader)?;
         let json_filename = format!("tests/reference-data/reference-{}.json", base_name);
-        let json: Value = read_ref_json(&json_filename)?;
+        println!("read json: {}", json_filename);
+        let json_arr: Value = read_ref_json(&json_filename)?;
+        let json: &Value = &json_arr[0];
+
+
         let unparsed = mseed3::UnparsedMSeed3Record::from_reader(&mut buf_reader)?;
         assert_eq!(
             unparsed.header.crc_hex_string(),
@@ -57,7 +61,7 @@ fn test_ref_data() -> Result<(), MSeedError> {
             json["StartTime"].as_str().unwrap()
         );
         assert_eq!(first.header.encoding.value(), json["EncodingFormat"]);
-        assert_eq!(first.header.sample_rate_period, json["SampleRate"]);
+        assert_eq!(first.header.get_sample_rate_hertz(), json["SampleRate"]);
         assert_eq!(first.header.num_samples, json["SampleCount"]);
         assert_eq!(first.header.crc_hex_string(), json["CRC"].as_str().unwrap());
         assert_eq!(first.header.publication_version, json["PublicationVersion"]);
